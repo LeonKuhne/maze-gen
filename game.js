@@ -1,8 +1,44 @@
-import { handleInput } from "./input.js"
+import { handleInput, movePlayer } from "./input.js"
 import { updateRender } from "./render.js"
 import { Config } from "./config.js"
 import { State } from "./state.js"
 import { generateMaze } from "./maze.js"
+
+function setupMobileControls() {
+  let isMobile = window.matchMedia("(hover: none) and (pointer: coarse)").matches
+  if (!isMobile) {
+    return
+  }
+
+  let controls = document.querySelector("#mobile-controls")
+  if (controls === null) {
+    return
+  }
+
+  let directionByName = {
+    up: [-1, 0],
+    right: [0, 1],
+    left: [0, -1],
+    down: [1, 0]
+  }
+
+  let buttons = controls.querySelectorAll("button[data-direction]")
+  for (let button of buttons) {
+    let direction = button.dataset.direction
+    if (!(direction in directionByName)) {
+      continue
+    }
+
+    let [dx, dy] = directionByName[direction]
+    let onPress = function(event) {
+      event.preventDefault()
+      movePlayer(dx, dy)
+    }
+
+    button.addEventListener("click", onPress)
+    button.addEventListener("touchstart", onPress, { passive: false })
+  }
+}
 
 window.onload = function() {
   let game_grid = document.querySelector("#game-grid")
@@ -26,6 +62,8 @@ window.onload = function() {
   document.addEventListener("keydown", function(event) {
     handleInput(event)
   })
+
+  setupMobileControls()
 
   updateRender()
 }
