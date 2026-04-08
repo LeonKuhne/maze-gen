@@ -1,0 +1,8 @@
+#!/bin/bash
+infos maze game
+
+help .cd | indent
+
+function serve() {
+  python3 -m http.server
+}
