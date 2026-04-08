@@ -3,18 +3,133 @@ import { State } from "./state.js"
 import { Pos } from "./pos.js"
 import { CellType } from "./cell.js"
 
+function isOpaque(pos) {
+  return !(pos.hash() in State.maze)
+}
+
+function canSeePos(targetPos) {
+  if (targetPos.equals(State.player_pos)) {
+    return true
+  }
+
+  let x = State.player_pos.x
+  let y = State.player_pos.y
+  let targetX = targetPos.x
+  let targetY = targetPos.y
+  let dx = targetX - x
+  let dy = targetY - y
+  let stepX = Math.sign(dx)
+  let stepY = Math.sign(dy)
+  let absDx = Math.abs(dx)
+  let absDy = Math.abs(dy)
+  let error = absDx - absDy
+
+  while (x !== targetX || y !== targetY) {
+    let prevX = x
+    let prevY = y
+    let doubledError = error * 2
+    let movedX = false
+    let movedY = false
+
+    if (doubledError > -absDy) {
+      error -= absDy
+      x += stepX
+      movedX = true
+    }
+
+    if (doubledError < absDx) {
+      error += absDx
+      y += stepY
+      movedY = true
+    }
+
+    if (movedX && movedY) {
+      let sideA = new Pos(prevX + stepX, prevY)
+      let sideB = new Pos(prevX, prevY + stepY)
+      if (isOpaque(sideA) && isOpaque(sideB)) {
+        return false
+      }
+    }
+
+    let current = new Pos(x, y)
+    if (isOpaque(current)) {
+      return current.equals(targetPos)
+    }
+  }
+
+  return true
+}
+
+function getConnectedVisiblePathHashes() {
+  let connected = new Set()
+  let visiblePath = new Set()
+
+  for (let i = 0; i < Config.view_size; i++) {
+    for (let j = 0; j < Config.view_size; j++) {
+      let maze_x = State.player_pos.x - Math.floor(Config.view_size / 2) + i
+      let maze_y = State.player_pos.y - Math.floor(Config.view_size / 2) + j
+      let maze_pos = new Pos(maze_x, maze_y)
+      if (canSeePos(maze_pos) && maze_pos.hash() in State.maze) {
+        visiblePath.add(maze_pos.hash())
+      }
+    }
+  }
+
+  let playerHash = State.player_pos.hash()
+  if (!visiblePath.has(playerHash)) {
+    return connected
+  }
+
+  let queue = [State.player_pos.clone()]
+  connected.add(playerHash)
+
+  while (queue.length > 0) {
+    let current = queue.shift()
+    let directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+
+    for (let [dx, dy] of directions) {
+      let next = new Pos(current.x + dx, current.y + dy)
+      let nextHash = next.hash()
+
+      if (!visiblePath.has(nextHash) || connected.has(nextHash)) {
+        continue
+      }
+
+      connected.add(nextHash)
+      queue.push(next)
+    }
+  }
+
+  return connected
+}
+
 export function updateRender() {
+  let floorCounter = document.querySelector("#floor-counter")
+  if (floorCounter !== null) {
+    floorCounter.textContent = `floor: ${State.floor}`
+  }
+
+  let connectedVisiblePath = getConnectedVisiblePathHashes()
+
   for (let i = 0; i < Config.view_size; i++) {
     for (let j = 0; j < Config.view_size; j++) {
       let cell = State.view[i][j]
       let maze_x = State.player_pos.x - Math.floor(Config.view_size / 2) + i
       let maze_y = State.player_pos.y - Math.floor(Config.view_size / 2) + j
       let maze_pos = new Pos(maze_x, maze_y)
-      if (!(maze_pos.hash() in State.maze)) {
+      let mazeHash = maze_pos.hash()
+
+      if (!canSeePos(maze_pos)) {
+        cell.setAttribute("type", "hidden")
+      } else if (!(mazeHash in State.maze)) {
         cell.setAttribute("type", "wall")
+      } else if (!connectedVisiblePath.has(mazeHash)) {
+        cell.setAttribute("type", "hidden")
       } else if (maze_pos.equals(State.player_pos)) {
         cell.setAttribute("type", "player")
-      } else if (State.maze[maze_pos.hash()] === CellType.OPEN) {
+      } else if (State.maze[mazeHash] === CellType.END) {
+        cell.setAttribute("type", "end")
+      } else if (State.maze[mazeHash] === CellType.OPEN) {
         cell.setAttribute("type", "open")
       }
     }

@@ -6,6 +6,15 @@ html, body {
   background: black;
 }
 
+#floor-counter {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: #ddd;
+  font-family: monospace;
+  font-size: 18px;
+}
+
 game {
   width: 100%;
   height: 100%;
@@ -21,18 +30,26 @@ game {
     height: 500px;
 
     cell {
-      border: 1px solid #222;
 
       &[type="player"] { 
         background: green;
       }
 
       &[type="wall"] {
+        background: #222;
+        border: 1px solid #111;
+      }
+
+      &[type="hidden"] {
         background: #000;
       }
 
       &[type="open"] {
         background: #333;
+      }
+
+      &[type="end"] {
+        background: #a80;
       }
     }
   }
