@@ -33,6 +33,20 @@ function creates2x2OpenSpace(candidatePos) {
   return false
 }
 
+function countCarvedNeighbors(pos) {
+  let carvedNeighbors = 0
+  let directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+
+  for (let [dx, dy] of directions) {
+    let neighbor = new Pos(pos.x + dx, pos.y + dy)
+    if (neighbor.hash() in State.maze) {
+      carvedNeighbors++
+    }
+  }
+
+  return carvedNeighbors
+}
+
 function getRandomForkInterval() {
   let forkMin = Math.max(1, Math.floor(Config.fork_min))
   let forkMax = Math.max(forkMin, Math.floor(Config.fork_max))
@@ -66,6 +80,10 @@ export function generateMaze() {
     }
 
     if (pos.hash() in State.maze) {
+      continue
+    }
+
+    if (num_cells > 0 && countCarvedNeighbors(pos) !== 1) {
       continue
     }
 
