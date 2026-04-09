@@ -362,7 +362,7 @@ game {
 @keyframes coin-rotate {
   0% { transform: translate(-50%, -50%) scaleX(1); }
   25% { transform: translate(-50%, -50%) scaleX(0.75); }
-  50% { transform: translate(-50%, -50%) scaleX(0.2); }
+  50% { transform: translate(-50%, -50%) scaleX(0.25); }
   75% { transform: translate(-50%, -50%) scaleX(0.75); }
   100% { transform: translate(-50%, -50%) scaleX(1); }
 }
