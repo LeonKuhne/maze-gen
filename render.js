@@ -203,6 +203,7 @@ export function updateRender() {
       let mazeHash = maze_pos.hash()
 
       cell.removeAttribute("data-key-color")
+      cell.removeAttribute("data-player")
       cell.removeAttribute("data-player-wobble")
 
       if (!visibleHashes.has(mazeHash)) {
@@ -215,9 +216,6 @@ export function updateRender() {
         }
       } else if (!connectedVisiblePath.has(mazeHash)) {
         cell.setAttribute("type", "hidden")
-      } else if (maze_pos.equals(State.player_pos)) {
-        cell.setAttribute("type", "player")
-        cell.setAttribute("data-player-wobble", String(State.playerMoveTick % 2))
       } else if (State.maze[mazeHash] === CellType.END) {
         cell.setAttribute("type", "end")
       } else if (State.maze[mazeHash] === CellType.KEY) {
@@ -232,6 +230,11 @@ export function updateRender() {
         }
       } else if (State.maze[mazeHash] === CellType.OPEN) {
         cell.setAttribute("type", "open")
+      }
+
+      if (maze_pos.equals(State.player_pos) && visibleHashes.has(mazeHash) && connectedVisiblePath.has(mazeHash)) {
+        cell.setAttribute("data-player", "true")
+        cell.setAttribute("data-player-wobble", String(State.playerMoveTick % 2))
       }
     }
   }
