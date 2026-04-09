@@ -176,6 +176,20 @@ export function updateRender() {
     floorCounter.textContent = `floor: ${State.floor}`
   }
 
+  let keyCounter = document.querySelector("#key-counter")
+  if (keyCounter !== null) {
+    keyCounter.replaceChildren()
+
+    for (let [color, count] of Object.entries(State.keyInventory)) {
+      for (let i = 0; i < count; i++) {
+        let icon = document.createElement("span")
+        icon.className = "inventory-key"
+        icon.setAttribute("data-key-color", color)
+        keyCounter.appendChild(icon)
+      }
+    }
+  }
+
   let visibleHashes = getVisibleHashesInView()
   let connectedVisiblePath = getConnectedVisiblePathHashes(visibleHashes)
   let connectedVisibleWalls = getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath)
@@ -187,6 +201,9 @@ export function updateRender() {
       let maze_y = State.player_pos.y - Math.floor(Config.view_size / 2) + j
       let maze_pos = new Pos(maze_x, maze_y)
       let mazeHash = maze_pos.hash()
+
+      cell.removeAttribute("data-key-color")
+      cell.removeAttribute("data-player-wobble")
 
       if (!visibleHashes.has(mazeHash)) {
         cell.setAttribute("type", "hidden")
@@ -200,8 +217,19 @@ export function updateRender() {
         cell.setAttribute("type", "hidden")
       } else if (maze_pos.equals(State.player_pos)) {
         cell.setAttribute("type", "player")
+        cell.setAttribute("data-player-wobble", String(State.playerMoveTick % 2))
       } else if (State.maze[mazeHash] === CellType.END) {
         cell.setAttribute("type", "end")
+      } else if (State.maze[mazeHash] === CellType.KEY) {
+        cell.setAttribute("type", "key")
+        if (mazeHash in State.keyColorByHash) {
+          cell.setAttribute("data-key-color", State.keyColorByHash[mazeHash])
+        }
+      } else if (State.maze[mazeHash] === CellType.DOOR) {
+        cell.setAttribute("type", "door")
+        if (mazeHash in State.doorColorByHash) {
+          cell.setAttribute("data-key-color", State.doorColorByHash[mazeHash])
+        }
       } else if (State.maze[mazeHash] === CellType.OPEN) {
         cell.setAttribute("type", "open")
       }

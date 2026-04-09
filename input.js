@@ -8,18 +8,36 @@ export function movePlayer(dx, dy) {
   let new_pos = State.player_pos.clone()
   new_pos.x += dx
   new_pos.y += dy
+  let nextHash = new_pos.hash()
 
-  if (!(new_pos.hash() in State.maze)) return
+  if (!(nextHash in State.maze)) return
 
-  if (State.maze[new_pos.hash()] === CellType.END) {
+  if (State.maze[nextHash] === CellType.DOOR) {
+    let doorColor = State.doorColorByHash[nextHash]
+    let matchingKeys = State.keyInventory[doorColor] ?? 0
+    if (matchingKeys === 0) {
+      return
+    }
+  }
+
+  if (State.maze[nextHash] === CellType.KEY) {
+    let keyColor = State.keyColorByHash[nextHash]
+    State.keyInventory[keyColor] = (State.keyInventory[keyColor] ?? 0) + 1
+    delete State.keyColorByHash[nextHash]
+    State.maze[nextHash] = CellType.OPEN
+  }
+
+  if (State.maze[nextHash] === CellType.END) {
     State.floor++
     State.player_pos = new Pos(0, 0)
+    State.playerMoveTick++
     generateMaze()
     updateRender()
     return
   }
 
   State.player_pos = new_pos
+  State.playerMoveTick++
   updateRender()
 }
 

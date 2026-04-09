@@ -3,6 +3,9 @@ import { Config } from "./config.js"
 import { State } from "./state.js"
 import { CellType } from "./cell.js"
 
+const CARDINAL_DIRECTIONS = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+const KEY_COLORS = ["red", "blue", "gold"]
+
 function isCarvedCell(pos, candidatePos = null) {
   if (candidatePos !== null && pos.x === candidatePos.x && pos.y === candidatePos.y) {
     return true
@@ -35,9 +38,8 @@ function creates2x2OpenSpace(candidatePos) {
 
 function countCarvedNeighbors(pos) {
   let carvedNeighbors = 0
-  let directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
 
-  for (let [dx, dy] of directions) {
+  for (let [dx, dy] of CARDINAL_DIRECTIONS) {
     let neighbor = new Pos(pos.x + dx, pos.y + dy)
     if (neighbor.hash() in State.maze) {
       carvedNeighbors++
@@ -62,8 +64,238 @@ function getNextFrontierPos(stack, shouldFork) {
   return stack.pop()
 }
 
+function parseHash(hash) {
+  let [x, y] = hash.split(",").map(Number)
+  return new Pos(x, y)
+}
+
+function countTraversableNeighbors(pos) {
+  let traversableCount = 0
+
+  for (let [dx, dy] of CARDINAL_DIRECTIONS) {
+    let neighbor = new Pos(pos.x + dx, pos.y + dy)
+    let neighborHash = neighbor.hash()
+    if (neighborHash in State.maze) {
+      traversableCount++
+    }
+  }
+
+  return traversableCount
+}
+
+function getDeadEndHashes(startHash, endHash) {
+  let deadEnds = []
+
+  for (let hash in State.maze) {
+    if (hash === startHash || hash === endHash) {
+      continue
+    }
+
+    if (State.maze[hash] !== CellType.OPEN) {
+      continue
+    }
+
+    let pos = parseHash(hash)
+    if (countTraversableNeighbors(pos) === 1) {
+      deadEnds.push(hash)
+    }
+  }
+
+  return deadEnds
+}
+
+function getPathHashes(startPos, targetHash) {
+  let queue = [startPos.clone()]
+  let visited = new Set([startPos.hash()])
+  let parentByHash = {}
+
+  while (queue.length > 0) {
+    let current = queue.shift()
+    let currentHash = current.hash()
+
+    if (currentHash === targetHash) {
+      break
+    }
+
+    for (let [dx, dy] of CARDINAL_DIRECTIONS) {
+      let next = new Pos(current.x + dx, current.y + dy)
+      let nextHash = next.hash()
+
+      if (!(nextHash in State.maze) || visited.has(nextHash)) {
+        continue
+      }
+
+      visited.add(nextHash)
+      parentByHash[nextHash] = currentHash
+      queue.push(next)
+    }
+  }
+
+  let pathHashes = new Set()
+  if (!visited.has(targetHash)) {
+    return pathHashes
+  }
+
+  let currentHash = targetHash
+  while (currentHash !== undefined) {
+    pathHashes.add(currentHash)
+    currentHash = parentByHash[currentHash]
+  }
+
+  return pathHashes
+}
+
+function getPathToTarget(startPos, targetHash) {
+  let queue = [startPos.clone()]
+  let visited = new Set([startPos.hash()])
+  let parentByHash = {}
+
+  while (queue.length > 0) {
+    let current = queue.shift()
+    let currentHash = current.hash()
+
+    if (currentHash === targetHash) {
+      break
+    }
+
+    for (let [dx, dy] of CARDINAL_DIRECTIONS) {
+      let next = new Pos(current.x + dx, current.y + dy)
+      let nextHash = next.hash()
+
+      if (!(nextHash in State.maze) || visited.has(nextHash)) {
+        continue
+      }
+
+      visited.add(nextHash)
+      parentByHash[nextHash] = currentHash
+      queue.push(next)
+    }
+  }
+
+  if (!visited.has(targetHash)) {
+    return []
+  }
+
+  let path = []
+  let currentHash = targetHash
+  while (currentHash !== undefined) {
+    path.push(currentHash)
+    currentHash = parentByHash[currentHash]
+  }
+
+  path.reverse()
+  return path
+}
+
+function getTraversableNeighborHashes(hash) {
+  let pos = parseHash(hash)
+  let neighbors = []
+
+  for (let [dx, dy] of CARDINAL_DIRECTIONS) {
+    let neighborHash = new Pos(pos.x + dx, pos.y + dy).hash()
+    if (neighborHash in State.maze) {
+      neighbors.push(neighborHash)
+    }
+  }
+
+  return neighbors
+}
+
+function getDeadEndAttachmentIndex(deadEndHash, pathIndexByHash) {
+  let currentHash = deadEndHash
+  let previousHash = null
+
+  while (!(currentHash in pathIndexByHash)) {
+    let nextOptions = getTraversableNeighborHashes(currentHash).filter((hash) => hash !== previousHash)
+    if (nextOptions.length === 0) {
+      return -1
+    }
+
+    previousHash = currentHash
+    currentHash = nextOptions[0]
+  }
+
+  return pathIndexByHash[currentHash]
+}
+
+function placeKeysAndDoors(endHash) {
+  let startHash = State.player_pos.hash()
+  let deadEndHashes = getDeadEndHashes(startHash, endHash)
+  if (deadEndHashes.length === 0) {
+    return
+  }
+
+  let startToEndPath = getPathToTarget(State.player_pos, endHash)
+  if (startToEndPath.length < 3) {
+    return
+  }
+
+  let pathIndexByHash = {}
+  for (let i = 0; i < startToEndPath.length; i++) {
+    pathIndexByHash[startToEndPath[i]] = i
+  }
+
+  let doorIndexes = []
+  for (let i = 1; i < startToEndPath.length - 1; i++) {
+    let hash = startToEndPath[i]
+    if (State.maze[hash] === CellType.OPEN) {
+      doorIndexes.push(i)
+    }
+  }
+
+  let keyedDeadEnds = deadEndHashes
+    .map((hash) => {
+      return {
+        hash,
+        attachmentIndex: getDeadEndAttachmentIndex(hash, pathIndexByHash)
+      }
+    })
+    .filter((entry) => entry.attachmentIndex >= 0)
+
+  keyedDeadEnds.sort((a, b) => a.attachmentIndex - b.attachmentIndex)
+
+  let availableDoorIndexes = [...doorIndexes]
+  let pairs = []
+
+  for (let deadEnd of keyedDeadEnds) {
+    let doorSlot = availableDoorIndexes.findIndex((index) => index > deadEnd.attachmentIndex)
+    if (doorSlot === -1) {
+      continue
+    }
+
+    let [doorIndex] = availableDoorIndexes.splice(doorSlot, 1)
+    pairs.push({
+      keyHash: deadEnd.hash,
+      doorHash: startToEndPath[doorIndex]
+    })
+  }
+
+  for (let i = pairs.length - 1; i > 0; i--) {
+    let j = Math.floor(Math.random() * (i + 1))
+    ;[pairs[i], pairs[j]] = [pairs[j], pairs[i]]
+  }
+
+  for (let i = 0; i < pairs.length; i++) {
+    let keyColor = KEY_COLORS[i % KEY_COLORS.length]
+    let { keyHash, doorHash } = pairs[i]
+
+    State.maze[keyHash] = CellType.KEY
+    State.keyColorByHash[keyHash] = keyColor
+
+    State.maze[doorHash] = CellType.DOOR
+    State.doorColorByHash[doorHash] = keyColor
+
+    if (!(keyColor in State.keyInventory)) {
+      State.keyInventory[keyColor] = 0
+    }
+  }
+}
+
 export function generateMaze() {
   State.maze = {}
+  State.keyInventory = {}
+  State.keyColorByHash = {}
+  State.doorColorByHash = {}
 
   let maze_cells = Math.max(1, Math.floor(Config.maze_size))
   let num_cells = 0
@@ -95,7 +327,7 @@ export function generateMaze() {
     last_open_pos = pos
     num_cells++
 
-    let directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+    let directions = [...CARDINAL_DIRECTIONS]
     directions.sort(() => Math.random() - 0.5)
 
     for (let [dx, dy] of directions) {
@@ -107,6 +339,8 @@ export function generateMaze() {
   }
 
   if (last_open_pos !== null) {
-    State.maze[last_open_pos.hash()] = CellType.END
+    let endHash = last_open_pos.hash()
+    State.maze[endHash] = CellType.END
+    placeKeysAndDoors(endHash)
   }
 }
