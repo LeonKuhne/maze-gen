@@ -1,3 +1,8 @@
+:root {
+  --cell-size: 100px;
+  --move-button-size: 64px;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -24,31 +29,28 @@ body {
 
 #mobile-controls {
   display: none;
+  rotate: 45deg;
 }
 
 @media (hover: none) and (pointer: coarse) {
   #mobile-controls {
     position: fixed;
-    right: 24px;
-    bottom: 24px;
-    width: 128px;
-    height: 128px;
+    right: 32px;
+    bottom: 32px;
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
-    gap: 10px;
-    transform: rotate(45deg);
     z-index: 20;
   }
 
   #mobile-controls button {
     background: #222;
     color: #ddd;
-    border: 1px solid #444;
-    font-size: 28px;
-    border-radius: 8px;
+    border: none;
+    margin: 1px;
     touch-action: manipulation;
-    transform: rotate(-45deg);
+    width: var(--move-button-size);
+    height: var(--move-button-size);
   }
 
   #mobile-controls button:active {
@@ -59,16 +61,16 @@ body {
 game {
 
   #game-grid {
-    background: #111;
+    background: black;
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     display: grid;
-    width: 900px;
-    height: 900px;
 
     cell {
+      width: var(--cell-size);
+      height: var(--cell-size);
 
       &[type="player"] { 
         background: green;
@@ -76,7 +78,9 @@ game {
 
       &[type="wall"] {
         background: #222;
-        border: 1px solid #111;
+        border: 1px solid #888;
+        margin: -1px;
+        z-index: 1;
       }
 
       &[type="hidden"] {
