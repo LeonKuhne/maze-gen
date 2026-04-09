@@ -1,6 +1,6 @@
 :root {
-  --cell-size: 100px;
-  --move-button-size: 64px;
+  --cell-size: 72px;
+  --move-button-size: 72px;
 }
 
 html, body {
