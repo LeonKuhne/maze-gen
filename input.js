@@ -522,6 +522,8 @@ export function movePlayer(dx, dy) {
 }
 
 export function handleInput(event) {
+  let isMobile = window.matchMedia("(hover: none) and (pointer: coarse)").matches
+
   if (tryHandleBindCapture(event)) {
     return
   }
@@ -530,9 +532,7 @@ export function handleInput(event) {
     event.preventDefault()
     if (State.isShopOpen) {
       setShopOpen(false)
-      return
     }
-    togglePause()
     return
   }
 
@@ -544,6 +544,8 @@ export function handleInput(event) {
       setShopOpen(false)
     } else if (!State.isPaused && isPlayerOnShopTile()) {
       setShopOpen(true)
+    } else if (!isMobile) {
+      setPaused(!State.isPaused)
     } else if (!State.isPaused) {
       dropLeastRecentKey()
     }

@@ -276,7 +276,7 @@ export function updateRender() {
 
   let pauseRetry = document.querySelector("#pause-retry")
   if (pauseRetry !== null) {
-    pauseRetry.textContent = isMobile ? "tap to resume" : "press esc to resume"
+    pauseRetry.textContent = isMobile ? "tap to resume" : "press space to resume"
   }
 
   let moneyCounter = document.querySelector("#money-counter")

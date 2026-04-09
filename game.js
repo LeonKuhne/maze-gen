@@ -152,8 +152,20 @@ function setupMobileControls() {
       movePlayer(dx, dy)
     }
 
-    button.addEventListener("click", onPress)
-    button.addEventListener("touchstart", onPress, { passive: false })
+    let ignoreClickUntil = 0
+    button.addEventListener("touchstart", function(event) {
+      ignoreClickUntil = Date.now() + 500
+      onPress(event)
+    }, { passive: false })
+    button.addEventListener("click", function(event) {
+      if (Date.now() < ignoreClickUntil) {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+
+      onPress(event)
+    })
   }
 }
 
@@ -181,8 +193,20 @@ function setupMobileItemControls() {
       useMobileAbility(item)
     }
 
-    button.addEventListener("click", onPress)
-    button.addEventListener("touchstart", onPress, { passive: false })
+    let ignoreClickUntil = 0
+    button.addEventListener("touchstart", function(event) {
+      ignoreClickUntil = Date.now() + 500
+      onPress(event)
+    }, { passive: false })
+    button.addEventListener("click", function(event) {
+      if (Date.now() < ignoreClickUntil) {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+
+      onPress(event)
+    })
   }
 }
 
@@ -192,12 +216,21 @@ function setupMobileScreenTap() {
     return
   }
 
-  let onTap = function(event) {
-    handleMobileScreenTap(event)
-  }
+  let ignoreClickUntil = 0
 
-  document.addEventListener("click", onTap)
-  document.addEventListener("touchstart", onTap, { passive: false })
+  document.addEventListener("touchstart", function(event) {
+    ignoreClickUntil = Date.now() + 500
+    handleMobileScreenTap(event)
+  }, { passive: false })
+
+  document.addEventListener("click", function(event) {
+    if (Date.now() < ignoreClickUntil) {
+      event.preventDefault()
+      return
+    }
+
+    handleMobileScreenTap(event)
+  })
 }
 
 window.onload = function() {
