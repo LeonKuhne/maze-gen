@@ -339,6 +339,7 @@ function placeHomeTile(endHash) {
   let hash = candidates[0]
   State.maze[hash] = CellType.HOME
   State.homeColorByHash[hash] = getHomeColor(0)
+  State.homeHash = hash
 }
 
 function placeSafetyTiles(endHash) {
@@ -374,6 +375,38 @@ function placeSafetyTiles(endHash) {
   }
 }
 
+function placeCoins(endHash) {
+  let startHash = State.player_pos.hash()
+  let candidates = []
+
+  for (let hash in State.maze) {
+    if (hash === startHash || hash === endHash) {
+      continue
+    }
+
+    if (State.maze[hash] !== CellType.OPEN) {
+      continue
+    }
+
+    candidates.push(hash)
+  }
+
+  if (candidates.length === 0) {
+    return
+  }
+
+  candidates.sort(() => Math.random() - 0.5)
+
+  let minCount = Math.max(0, Math.floor(Config.coin_min))
+  let maxCount = Math.max(minCount, Math.floor(Config.coin_max))
+  let targetCount = Math.min(candidates.length, Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount)
+
+  for (let i = 0; i < targetCount; i++) {
+    let hash = candidates[i]
+    State.maze[hash] = CellType.COIN
+  }
+}
+
 export function generateMaze() {
   State.maze = {}
   State.keyInventory = {}
@@ -381,7 +414,11 @@ export function generateMaze() {
   State.keyColorByHash = {}
   State.doorColorByHash = {}
   State.homeColorByHash = {}
+  State.homeHash = null
   State.safetyColorByHash = {}
+  State.teleporterUpHash = null
+  State.teleporterDownHash = null
+  State.teleporterPlacementTarget = "up"
 
   let maze_cells = Math.max(1, Math.floor(Config.maze_size))
   let num_cells = 0
@@ -430,5 +467,6 @@ export function generateMaze() {
     placeKeysAndDoors(endHash)
     placeHomeTile(endHash)
     placeSafetyTiles(endHash)
+    placeCoins(endHash)
   }
 }

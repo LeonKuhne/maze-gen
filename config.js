@@ -10,4 +10,11 @@ export class Config {
   static max_keys_held = 3
   static safety_tile_min = 3
   static safety_tile_max = 6
+  static coin_min = 6
+  static coin_max = 14
+  static teleporter_unlock_cost = 8
+  static drill_unlock_cost = 10
+  static drill_use_cost = 3
+  static recall_unlock_cost = 12
+  static recall_use_cost = 4
 }

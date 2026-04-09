@@ -5,4 +5,5 @@ export class CellType {
   static DOOR = 3
   static HOME = 4
   static SAFETY = 5
+  static COIN = 6
 }

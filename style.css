@@ -28,6 +28,16 @@ body {
   z-index: 10;
 }
 
+#money-counter {
+  position: absolute;
+  top: 44px;
+  right: 16px;
+  color: #ddd;
+  font-family: monospace;
+  font-size: 16px;
+  z-index: 10;
+}
+
 #key-counter {
   position: absolute;
   top: 16px;
@@ -135,6 +145,22 @@ game {
         animation: wobble-b 180ms ease-out;
       }
 
+      &[data-teleporter-up="true"],
+      &[data-teleporter-down="true"] {
+        background: #fff;
+        box-shadow:
+          inset 0 0 0 2px #fff,
+          inset 0 0 12px #ffffffaa,
+          0 0 10px #ffffff66;
+      }
+
+      &[data-teleporter-up="true"][data-teleporter-down="true"] {
+        box-shadow:
+          inset 0 0 0 2px #fff,
+          inset 0 0 14px #ffffffcc,
+          0 0 14px #ffffff88;
+      }
+
       &[type="wall"] {
         background: #222;
         border: 1px solid #888;
@@ -165,6 +191,25 @@ game {
       &[type="key"] {
         background: #333;
         position: relative;
+      }
+
+      &[type="coin"] {
+        background: #333;
+        position: relative;
+      }
+
+      &[type="coin"]::after {
+        content: "";
+        position: absolute;
+        width: calc(var(--cell-size) / 3.1);
+        height: calc(var(--cell-size) / 3.1);
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        border-radius: 999px;
+        background: radial-gradient(circle at 30% 30%, #fff4b0, #d6a120 70%);
+        border: 1px solid #ffe08a;
+        animation: coin-rotate 900ms linear infinite;
       }
 
       &[type="key"]::after {
@@ -267,6 +312,34 @@ game {
   opacity: 0.9;
 }
 
+#pause-shop {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+#pause-shop button {
+  font-family: monospace;
+  font-size: 13px;
+  padding: 8px 10px;
+  background: #1b1b1b;
+  color: #ddd;
+  border: 1px solid #777;
+  text-align: left;
+}
+
+#pause-shop button[disabled] {
+  opacity: 0.55;
+}
+
+#bind-prompt {
+  margin-top: 10px;
+  min-height: 18px;
+  color: #bbb;
+  font-family: monospace;
+  font-size: 12px;
+}
+
 @keyframes rotate {
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }
@@ -284,4 +357,12 @@ game {
   33% { transform: translate(-50%, -50%) skew(-5deg, 5deg); }
   66% { transform: translate(-50%, -50%) skew(5deg, -5deg); }
   100% { transform: translate(-50%, -50%) skew(0deg, 0deg); }
+}
+
+@keyframes coin-rotate {
+  0% { transform: translate(-50%, -50%) scaleX(1); }
+  25% { transform: translate(-50%, -50%) scaleX(0.75); }
+  50% { transform: translate(-50%, -50%) scaleX(0.2); }
+  75% { transform: translate(-50%, -50%) scaleX(0.75); }
+  100% { transform: translate(-50%, -50%) scaleX(1); }
 }

@@ -9,6 +9,7 @@
 </head>
 <body>
   <div id="key-counter" aria-label="Key inventory"></div>
+  <div id="money-counter">coins: 0</div>
   <div id="floor-counter">floor: 1</div>
   <game>
     <div id="game-grid"></div>
@@ -24,6 +25,12 @@
     <div id="pause-dialog">
       <div id="pause-title">paused</div>
       <div id="pause-retry">press esc to resume</div>
+      <div id="pause-shop">
+        <button type="button" id="buy-teleporter">unlock teleporter (pgup/pgdn)</button>
+        <button type="button" id="buy-drill">unlock drill (z)</button>
+        <button type="button" id="buy-recall">unlock recall (x)</button>
+      </div>
+      <div id="bind-prompt"></div>
     </div>
   </div>
   <div id="mobile-controls" aria-label="Movement controls">

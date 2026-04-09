@@ -3,6 +3,22 @@ import { State } from "./state.js"
 import { Pos } from "./pos.js"
 import { CellType } from "./cell.js"
 
+function formatBindLabel(code) {
+  if (code === null) {
+    return "unbound"
+  }
+
+  if (code.startsWith("Key")) {
+    return code.slice(3).toLowerCase()
+  }
+
+  if (code.startsWith("Digit")) {
+    return code.slice(5)
+  }
+
+  return code
+}
+
 function getCurrentViewSize() {
   return State.view.length > 0 ? State.view.length : Config.view_size
 }
@@ -256,6 +272,11 @@ export function updateRender() {
     floorCounter.textContent = `floor: ${State.floor}`
   }
 
+  let moneyCounter = document.querySelector("#money-counter")
+  if (moneyCounter !== null) {
+    moneyCounter.textContent = `coins: ${State.coins}`
+  }
+
   let keyCounter = document.querySelector("#key-counter")
   if (keyCounter !== null) {
     keyCounter.replaceChildren()
@@ -268,6 +289,60 @@ export function updateRender() {
         icon.style.setProperty("--key-color", color)
         keyCounter.appendChild(icon)
       }
+    }
+  }
+
+  let buyTeleporter = document.querySelector("#buy-teleporter")
+  if (buyTeleporter !== null) {
+    if (State.teleporterUnlocked) {
+      buyTeleporter.textContent = `teleporter: ${formatBindLabel(State.teleporterBindCode)} (click to remap)`
+      buyTeleporter.removeAttribute("disabled")
+    } else {
+      buyTeleporter.textContent = `unlock teleporter: ${Config.teleporter_unlock_cost}`
+      if (State.coins < Config.teleporter_unlock_cost) {
+        buyTeleporter.setAttribute("disabled", "")
+      } else {
+        buyTeleporter.removeAttribute("disabled")
+      }
+    }
+  }
+
+  let buyDrill = document.querySelector("#buy-drill")
+  if (buyDrill !== null) {
+    if (State.drillUnlocked) {
+      buyDrill.textContent = `drill: ${formatBindLabel(State.drillBindCode)} (use cost ${Config.drill_use_cost}, click to remap)`
+      buyDrill.removeAttribute("disabled")
+    } else {
+      buyDrill.textContent = `unlock drill: ${Config.drill_unlock_cost}`
+      if (State.coins < Config.drill_unlock_cost) {
+        buyDrill.setAttribute("disabled", "")
+      } else {
+        buyDrill.removeAttribute("disabled")
+      }
+    }
+  }
+
+  let buyRecall = document.querySelector("#buy-recall")
+  if (buyRecall !== null) {
+    if (State.recallUnlocked) {
+      buyRecall.textContent = `recall: ${formatBindLabel(State.recallBindCode)} (use cost ${Config.recall_use_cost}, click to remap)`
+      buyRecall.removeAttribute("disabled")
+    } else {
+      buyRecall.textContent = `unlock recall: ${Config.recall_unlock_cost}`
+      if (State.coins < Config.recall_unlock_cost) {
+        buyRecall.setAttribute("disabled", "")
+      } else {
+        buyRecall.removeAttribute("disabled")
+      }
+    }
+  }
+
+  let bindPrompt = document.querySelector("#bind-prompt")
+  if (bindPrompt !== null) {
+    if (State.bindCaptureItem === null) {
+      bindPrompt.textContent = ""
+    } else {
+      bindPrompt.textContent = `press a key for ${State.bindCaptureItem} (esc to cancel)`
     }
   }
 
@@ -307,6 +382,8 @@ export function updateRender() {
       cell.style.removeProperty("--safety-color")
       cell.removeAttribute("data-player")
       cell.removeAttribute("data-player-wobble")
+      cell.removeAttribute("data-teleporter-up")
+      cell.removeAttribute("data-teleporter-down")
 
       if (!visibleHashes.has(mazeHash)) {
         cell.setAttribute("type", "hidden")
@@ -327,6 +404,8 @@ export function updateRender() {
           cell.setAttribute("data-key-color", keyColor)
           cell.style.setProperty("--key-color", keyColor)
         }
+      } else if (State.maze[mazeHash] === CellType.COIN) {
+        cell.setAttribute("type", "coin")
       } else if (State.maze[mazeHash] === CellType.DOOR) {
         cell.setAttribute("type", "door")
         if (mazeHash in State.doorColorByHash) {
@@ -355,6 +434,14 @@ export function updateRender() {
       if (maze_pos.equals(State.player_pos) && visibleHashes.has(mazeHash) && connectedVisiblePath.has(mazeHash)) {
         cell.setAttribute("data-player", "true")
         cell.setAttribute("data-player-wobble", String(State.playerMoveTick % 2))
+      }
+
+      if (State.teleporterUpHash !== null && mazeHash === State.teleporterUpHash) {
+        cell.setAttribute("data-teleporter-up", "true")
+      }
+
+      if (State.teleporterDownHash !== null && mazeHash === State.teleporterDownHash) {
+        cell.setAttribute("data-teleporter-down", "true")
       }
     }
   }

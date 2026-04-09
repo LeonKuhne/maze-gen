@@ -9,6 +9,264 @@ function getTotalKeysHeld() {
   return Object.values(State.keyInventory).reduce((sum, count) => sum + count, 0)
 }
 
+function isModifierKey(event) {
+  return event.key === "Shift" || event.key === "Control" || event.key === "Alt" || event.key === "Meta"
+}
+
+function getBindDisplay(code) {
+  if (code === null) {
+    return "unbound"
+  }
+
+  if (code.startsWith("Key")) {
+    return code.slice(3).toLowerCase()
+  }
+
+  if (code.startsWith("Digit")) {
+    return code.slice(5)
+  }
+
+  return code
+}
+
+function clearConflictingBinds(code, excludedItem) {
+  if (excludedItem !== "teleporter" && State.teleporterBindCode === code) {
+    State.teleporterBindCode = null
+  }
+
+  if (excludedItem !== "drill" && State.drillBindCode === code) {
+    State.drillBindCode = null
+  }
+
+  if (excludedItem !== "recall" && State.recallBindCode === code) {
+    State.recallBindCode = null
+  }
+}
+
+function assignBind(item, code) {
+  clearConflictingBinds(code, item)
+
+  if (item === "teleporter") {
+    State.teleporterBindCode = code
+  } else if (item === "drill") {
+    State.drillBindCode = code
+  } else if (item === "recall") {
+    State.recallBindCode = code
+  }
+}
+
+function startBindCapture(item) {
+  State.bindCaptureItem = item
+  updateRender()
+}
+
+function tryHandleBindCapture(event) {
+  if (State.bindCaptureItem === null) {
+    return false
+  }
+
+  event.preventDefault()
+
+  if (event.key === "Escape") {
+    State.bindCaptureItem = null
+    updateRender()
+    return true
+  }
+
+  if (isModifierKey(event)) {
+    return true
+  }
+
+  assignBind(State.bindCaptureItem, event.code)
+  State.bindCaptureItem = null
+  updateRender()
+  return true
+}
+
+function spendCoins(cost) {
+  if (State.coins < cost) {
+    return false
+  }
+
+  State.coins -= cost
+  return true
+}
+
+function purchaseAbility(kind) {
+  if (kind === "teleporter") {
+    if (State.teleporterUnlocked || !spendCoins(Config.teleporter_unlock_cost)) {
+      return
+    }
+
+    State.teleporterUnlocked = true
+    startBindCapture("teleporter")
+    updateRender()
+    return
+  }
+
+  if (kind === "drill") {
+    if (State.drillUnlocked || !spendCoins(Config.drill_unlock_cost)) {
+      return
+    }
+
+    State.drillUnlocked = true
+    startBindCapture("drill")
+    updateRender()
+    return
+  }
+
+  if (kind === "recall") {
+    if (State.recallUnlocked || !spendCoins(Config.recall_unlock_cost)) {
+      return
+    }
+
+    State.recallUnlocked = true
+    startBindCapture("recall")
+    updateRender()
+  }
+}
+
+function clickAbilityButton(kind) {
+  if (kind === "teleporter") {
+    if (State.teleporterUnlocked) {
+      startBindCapture("teleporter")
+      return
+    }
+    purchaseAbility("teleporter")
+    return
+  }
+
+  if (kind === "drill") {
+    if (State.drillUnlocked) {
+      startBindCapture("drill")
+      return
+    }
+    purchaseAbility("drill")
+    return
+  }
+
+  if (kind === "recall") {
+    if (State.recallUnlocked) {
+      startBindCapture("recall")
+      return
+    }
+    purchaseAbility("recall")
+  }
+}
+
+export function setupShopControls() {
+  let buyTeleporter = document.querySelector("#buy-teleporter")
+  let buyDrill = document.querySelector("#buy-drill")
+  let buyRecall = document.querySelector("#buy-recall")
+
+  if (buyTeleporter !== null) {
+    buyTeleporter.addEventListener("click", function() {
+      clickAbilityButton("teleporter")
+    })
+  }
+
+  if (buyDrill !== null) {
+    buyDrill.addEventListener("click", function() {
+      clickAbilityButton("drill")
+    })
+  }
+
+  if (buyRecall !== null) {
+    buyRecall.addEventListener("click", function() {
+      clickAbilityButton("recall")
+    })
+  }
+}
+
+function setTeleporterPoint(kind) {
+  if (!State.teleporterUnlocked) {
+    return
+  }
+
+  let playerHash = State.player_pos.hash()
+  if (!(playerHash in State.maze)) {
+    return
+  }
+
+  if (kind === "up") {
+    State.teleporterUpHash = playerHash
+  } else if (kind === "down") {
+    State.teleporterDownHash = playerHash
+  }
+
+  updateRender()
+}
+
+function useTeleporterPlacementAction() {
+  if (!State.teleporterUnlocked || State.teleporterBindCode === null) {
+    return
+  }
+
+  setTeleporterPoint(State.teleporterPlacementTarget)
+  State.teleporterPlacementTarget = State.teleporterPlacementTarget === "up" ? "down" : "up"
+  updateRender()
+}
+
+function useDrill() {
+  if (!State.drillUnlocked) {
+    return
+  }
+
+  if (!spendCoins(Config.drill_use_cost)) {
+    return
+  }
+
+  let directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+  for (let [dx, dy] of directions) {
+    let wallPos = new Pos(State.player_pos.x + dx, State.player_pos.y + dy)
+    let wallHash = wallPos.hash()
+    if (!(wallHash in State.maze)) {
+      State.maze[wallHash] = CellType.OPEN
+    }
+  }
+
+  updateRender()
+}
+
+function useRecall() {
+  if (!State.recallUnlocked) {
+    return
+  }
+
+  if (State.homeHash === null || !spendCoins(Config.recall_use_cost)) {
+    return
+  }
+
+  let [x, y] = State.homeHash.split(",").map(Number)
+  State.player_pos = new Pos(x, y)
+  State.playerMoveTick++
+  updateRender()
+}
+
+function applyTeleporterIfNeeded() {
+  if (State.teleporterUpHash === null || State.teleporterDownHash === null) {
+    return
+  }
+
+  if (State.teleporterUpHash === State.teleporterDownHash) {
+    return
+  }
+
+  let playerHash = State.player_pos.hash()
+  if (playerHash === State.teleporterUpHash) {
+    let [x, y] = State.teleporterDownHash.split(",").map(Number)
+    State.player_pos = new Pos(x, y)
+    State.playerMoveTick++
+    return
+  }
+
+  if (playerHash === State.teleporterDownHash) {
+    let [x, y] = State.teleporterUpHash.split(",").map(Number)
+    State.player_pos = new Pos(x, y)
+    State.playerMoveTick++
+  }
+}
+
 function dropLeastRecentKey() {
   if (State.keyPickupOrder.length === 0) {
     return
@@ -111,6 +369,7 @@ export function restartGame() {
   State.floor = 1
   State.player_pos = new Pos(0, 0)
   State.playerMoveTick = 0
+  State.coins = 0
   State.gameOver = false
   State.hazardActive = false
   State.hazardColor = ""
@@ -119,6 +378,14 @@ export function restartGame() {
   State.warningClearColor = ""
   State.warningClearElapsedMs = 0
   State.warningClearStartProgress = 0
+  State.teleporterPlacementTarget = "up"
+  State.teleporterUnlocked = false
+  State.drillUnlocked = false
+  State.recallUnlocked = false
+  State.teleporterBindCode = null
+  State.drillBindCode = null
+  State.recallBindCode = null
+  State.bindCaptureItem = null
   State.isPaused = false
 
   generateMaze()
@@ -157,6 +424,11 @@ export function movePlayer(dx, dy) {
     }
   }
 
+  if (State.maze[nextHash] === CellType.COIN) {
+    State.coins++
+    State.maze[nextHash] = CellType.OPEN
+  }
+
   if (State.maze[nextHash] === CellType.END) {
     State.floor++
     State.player_pos = new Pos(0, 0)
@@ -175,10 +447,15 @@ export function movePlayer(dx, dy) {
 
   State.player_pos = new_pos
   State.playerMoveTick++
+  applyTeleporterIfNeeded()
   updateRender()
 }
 
 export function handleInput(event) {
+  if (tryHandleBindCapture(event)) {
+    return
+  }
+
   if (event.key === "Escape") {
     event.preventDefault()
     togglePause()
@@ -196,6 +473,24 @@ export function handleInput(event) {
   }
 
   if (State.gameOver || State.isPaused) {
+    return
+  }
+
+  if (State.teleporterBindCode !== null && event.code === State.teleporterBindCode) {
+    event.preventDefault()
+    useTeleporterPlacementAction()
+    return
+  }
+
+  if (State.drillBindCode !== null && event.code === State.drillBindCode) {
+    event.preventDefault()
+    useDrill()
+    return
+  }
+
+  if (State.recallBindCode !== null && event.code === State.recallBindCode) {
+    event.preventDefault()
+    useRecall()
     return
   }
 

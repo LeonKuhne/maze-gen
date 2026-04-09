@@ -1,4 +1,4 @@
-import { handleInput, movePlayer, triggerGameOver } from "./input.js"
+import { handleInput, movePlayer, setupShopControls, triggerGameOver } from "./input.js"
 import { updateRender } from "./render.js"
 import { Config } from "./config.js"
 import { State } from "./state.js"
@@ -180,6 +180,7 @@ window.onload = function() {
   })
 
   setupMobileControls()
+  setupShopControls()
 
   if (hazardTimerId !== null) {
     clearInterval(hazardTimerId)
