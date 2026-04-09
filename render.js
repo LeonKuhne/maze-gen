@@ -230,12 +230,66 @@ function getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath, view
   return connectedWalls
 }
 
+function syncMobileItemButtons() {
+  let controls = document.querySelector("#mobile-item-controls")
+  if (controls === null) {
+    return
+  }
+
+  let enabledItems = []
+  if (State.teleporterUnlocked) {
+    enabledItems.push("teleporter")
+  }
+  if (State.drillUnlocked) {
+    enabledItems.push("drill")
+  }
+  if (State.recallUnlocked) {
+    enabledItems.push("recall")
+  }
+
+  let hasSameButtons = controls.children.length === enabledItems.length
+  if (hasSameButtons) {
+    for (let i = 0; i < enabledItems.length; i++) {
+      let child = controls.children[i]
+      if (!(child instanceof HTMLButtonElement) || child.dataset.item !== enabledItems[i]) {
+        hasSameButtons = false
+        break
+      }
+    }
+  }
+
+  if (hasSameButtons) {
+    return
+  }
+
+  controls.replaceChildren()
+  for (let item of enabledItems) {
+    let button = document.createElement("button")
+    button.type = "button"
+    button.dataset.item = item
+    button.setAttribute("aria-label", `use ${item}`)
+    controls.appendChild(button)
+  }
+}
+
 export function updateRender() {
   let playerHash = State.player_pos.hash()
   let isOnHomeCell = (playerHash in State.maze) && State.maze[playerHash] === CellType.HOME
+  let isOnSafetyCell = (playerHash in State.maze) && State.maze[playerHash] === CellType.SAFETY
   let isOnShopCell = (playerHash in State.maze) && State.maze[playerHash] === CellType.SHOP
   let isMobile = window.matchMedia("(hover: none) and (pointer: coarse)").matches
-  let targetViewSize = isOnHomeCell ? (Config.view_size * 2) - 1 : Config.view_size
+  let targetViewSize = Config.view_size
+
+  if (isOnHomeCell) {
+    targetViewSize = (Config.view_size * 2) - 1
+  } else if (isOnSafetyCell && State.jokerSafetyViewUnlocked) {
+    targetViewSize = (Config.view_size * 2) - 1
+  }
+
+  if (targetViewSize % 2 === 0) {
+    targetViewSize += 1
+  }
+
   ensureViewGridSize(targetViewSize)
   let viewSize = getCurrentViewSize()
 
@@ -279,13 +333,21 @@ export function updateRender() {
     pauseRetry.textContent = isMobile ? "tap to resume" : "press space to resume"
   }
 
+  let shopRetry = document.querySelector("#shop-retry")
+  if (shopRetry !== null) {
+    shopRetry.textContent = isMobile ? "tap outside to close" : "press space to close"
+  }
+
   let moneyCounter = document.querySelector("#money-counter")
   if (moneyCounter !== null) {
     moneyCounter.textContent = `coins: ${State.coins}`
   }
 
+  syncMobileItemButtons()
+
   let shopHint = document.querySelector("#shop-hint")
   if (shopHint !== null) {
+    shopHint.textContent = isMobile ? "tap to open shop" : "press space to open shop"
     let shouldShow = isOnShopCell && !State.isPaused && !State.isShopOpen && !State.gameOver
     if (shouldShow) {
       shopHint.removeAttribute("hidden")
@@ -315,7 +377,7 @@ export function updateRender() {
       buyTeleporter.textContent = `teleporter: ${formatBindLabel(State.teleporterBindCode)} (click to remap)`
       buyTeleporter.removeAttribute("disabled")
     } else {
-      buyTeleporter.textContent = `unlock teleporter: ${Config.teleporter_unlock_cost}`
+      buyTeleporter.textContent = `teleporter: ${Config.teleporter_unlock_cost}`
       if (State.coins < Config.teleporter_unlock_cost) {
         buyTeleporter.setAttribute("disabled", "")
       } else {
@@ -330,7 +392,7 @@ export function updateRender() {
       buyDrill.textContent = `drill: ${formatBindLabel(State.drillBindCode)} (use cost ${Config.drill_use_cost}, click to remap)`
       buyDrill.removeAttribute("disabled")
     } else {
-      buyDrill.textContent = `unlock drill: ${Config.drill_unlock_cost}`
+      buyDrill.textContent = `drill: ${Config.drill_unlock_cost}`
       if (State.coins < Config.drill_unlock_cost) {
         buyDrill.setAttribute("disabled", "")
       } else {
@@ -345,11 +407,26 @@ export function updateRender() {
       buyRecall.textContent = `recall: ${formatBindLabel(State.recallBindCode)} (use cost ${Config.recall_use_cost}, click to remap)`
       buyRecall.removeAttribute("disabled")
     } else {
-      buyRecall.textContent = `unlock recall: ${Config.recall_unlock_cost}`
+      buyRecall.textContent = `recall: ${Config.recall_unlock_cost}`
       if (State.coins < Config.recall_unlock_cost) {
         buyRecall.setAttribute("disabled", "")
       } else {
         buyRecall.removeAttribute("disabled")
+      }
+    }
+  }
+
+  let buyJokerSafetyView = document.querySelector("#buy-joker-safety-view")
+  if (buyJokerSafetyView !== null) {
+    if (State.jokerSafetyViewUnlocked) {
+      buyJokerSafetyView.textContent = "peek (unlocked)"
+      buyJokerSafetyView.setAttribute("disabled", "")
+    } else {
+      buyJokerSafetyView.textContent = `peek: ${Config.joker_safety_view_upgrade_cost}`
+      if (State.coins < Config.joker_safety_view_upgrade_cost) {
+        buyJokerSafetyView.setAttribute("disabled", "")
+      } else {
+        buyJokerSafetyView.removeAttribute("disabled")
       }
     }
   }

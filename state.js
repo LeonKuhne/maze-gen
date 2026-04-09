@@ -27,6 +27,7 @@ export class State {
   static teleporterUnlocked = false
   static drillUnlocked = false
   static recallUnlocked = false
+  static jokerSafetyViewUnlocked = false
   static teleporterBindCode = null
   static drillBindCode = null
   static recallBindCode = null

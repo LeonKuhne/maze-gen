@@ -191,34 +191,56 @@ function setupMobileItemControls() {
     return
   }
 
-  let buttons = controls.querySelectorAll("button[data-item]")
-  for (let button of buttons) {
+  let ignoreClickUntil = 0
+
+  controls.addEventListener("touchstart", function(event) {
+    let target = event.target
+    if (!(target instanceof Element)) {
+      return
+    }
+
+    let button = target.closest("button[data-item]")
+    if (!(button instanceof HTMLButtonElement)) {
+      return
+    }
+
     let item = button.dataset.item
     if (item !== "teleporter" && item !== "drill" && item !== "recall") {
-      continue
+      return
     }
 
-    let onPress = function(event) {
+    ignoreClickUntil = Date.now() + 500
+    event.preventDefault()
+    event.stopPropagation()
+    useMobileAbility(item)
+  }, { passive: false })
+
+  controls.addEventListener("click", function(event) {
+    let target = event.target
+    if (!(target instanceof Element)) {
+      return
+    }
+
+    let button = target.closest("button[data-item]")
+    if (!(button instanceof HTMLButtonElement)) {
+      return
+    }
+
+    if (Date.now() < ignoreClickUntil) {
       event.preventDefault()
       event.stopPropagation()
-      useMobileAbility(item)
+      return
     }
 
-    let ignoreClickUntil = 0
-    button.addEventListener("touchstart", function(event) {
-      ignoreClickUntil = Date.now() + 500
-      onPress(event)
-    }, { passive: false })
-    button.addEventListener("click", function(event) {
-      if (Date.now() < ignoreClickUntil) {
-        event.preventDefault()
-        event.stopPropagation()
-        return
-      }
+    let item = button.dataset.item
+    if (item !== "teleporter" && item !== "drill" && item !== "recall") {
+      return
+    }
 
-      onPress(event)
-    })
-  }
+    event.preventDefault()
+    event.stopPropagation()
+    useMobileAbility(item)
+  })
 }
 
 function setupMobileScreenTap() {

@@ -129,6 +129,16 @@ function purchaseAbility(kind) {
     State.recallUnlocked = true
     startBindCapture("recall")
     updateRender()
+    return
+  }
+
+  if (kind === "joker-safety-view") {
+    if (State.jokerSafetyViewUnlocked || !spendCoins(Config.joker_safety_view_upgrade_cost)) {
+      return
+    }
+
+    State.jokerSafetyViewUnlocked = true
+    updateRender()
   }
 }
 
@@ -157,6 +167,11 @@ function clickAbilityButton(kind) {
       return
     }
     purchaseAbility("recall")
+    return
+  }
+
+  if (kind === "joker-safety-view") {
+    purchaseAbility("joker-safety-view")
   }
 }
 
@@ -164,6 +179,7 @@ export function setupShopControls() {
   let buyTeleporter = document.querySelector("#buy-teleporter")
   let buyDrill = document.querySelector("#buy-drill")
   let buyRecall = document.querySelector("#buy-recall")
+  let buyJokerSafetyView = document.querySelector("#buy-joker-safety-view")
 
   if (buyTeleporter !== null) {
     buyTeleporter.addEventListener("click", function() {
@@ -180,6 +196,12 @@ export function setupShopControls() {
   if (buyRecall !== null) {
     buyRecall.addEventListener("click", function() {
       clickAbilityButton("recall")
+    })
+  }
+
+  if (buyJokerSafetyView !== null) {
+    buyJokerSafetyView.addEventListener("click", function() {
+      clickAbilityButton("joker-safety-view")
     })
   }
 }
@@ -299,30 +321,57 @@ function dropLeastRecentKey() {
   }
 
   let playerHash = State.player_pos.hash()
-  if (!(playerHash in State.maze) || State.maze[playerHash] !== CellType.OPEN) {
+  if (!(playerHash in State.maze)) {
     return
   }
 
-  let keyColor = State.keyPickupOrder[0]
-  if (keyColor === undefined) {
+  let playerCellType = State.maze[playerHash]
+  if (playerCellType !== CellType.OPEN && playerCellType !== CellType.KEY) {
     return
   }
 
-  let currentCount = State.keyInventory[keyColor] ?? 0
+  let keyColorToDrop = State.keyPickupOrder[0]
+  if (keyColorToDrop === undefined) {
+    return
+  }
+
+  let currentCount = State.keyInventory[keyColorToDrop] ?? 0
   if (currentCount <= 0) {
     State.keyPickupOrder.shift()
     return
   }
 
-  State.maze[playerHash] = CellType.KEY
-  State.keyColorByHash[playerHash] = keyColor
+  if (playerCellType === CellType.KEY) {
+    let keyColorToPickUp = State.keyColorByHash[playerHash]
+    if (keyColorToPickUp === undefined) {
+      return
+    }
+
+    State.keyPickupOrder.shift()
+
+    if (currentCount <= 1) {
+      delete State.keyInventory[keyColorToDrop]
+    } else {
+      State.keyInventory[keyColorToDrop] = currentCount - 1
+    }
+
+    State.keyColorByHash[playerHash] = keyColorToDrop
+    State.keyInventory[keyColorToPickUp] = (State.keyInventory[keyColorToPickUp] ?? 0) + 1
+    State.keyPickupOrder.push(keyColorToPickUp)
+    updateRender()
+    return
+  }
+
   State.keyPickupOrder.shift()
 
   if (currentCount <= 1) {
-    delete State.keyInventory[keyColor]
+    delete State.keyInventory[keyColorToDrop]
   } else {
-    State.keyInventory[keyColor] = currentCount - 1
+    State.keyInventory[keyColorToDrop] = currentCount - 1
   }
+
+  State.maze[playerHash] = CellType.KEY
+  State.keyColorByHash[playerHash] = keyColorToDrop
 
   updateRender()
 }
@@ -499,6 +548,7 @@ export function restartGame() {
   State.teleporterUnlocked = false
   State.drillUnlocked = false
   State.recallUnlocked = false
+  State.jokerSafetyViewUnlocked = false
   State.teleporterBindCode = null
   State.drillBindCode = null
   State.recallBindCode = null

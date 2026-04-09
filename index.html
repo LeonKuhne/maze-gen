@@ -11,7 +11,7 @@
   <div id="key-counter" aria-label="Key inventory"></div>
   <div id="money-counter">coins: 0</div>
   <div id="floor-counter">floor: 1</div>
-  <div id="shop-hint" hidden>press space (or tap on mobile) to open shop</div>
+  <div id="shop-hint" hidden>press space to open shop</div>
   <game>
     <div id="game-grid"></div>
   </game>
@@ -33,9 +33,10 @@
       <div id="shop-title">shop</div>
       <div id="shop-retry">press space to close</div>
       <div id="shop-actions">
-        <button type="button" id="buy-teleporter">unlock teleporter</button>
-        <button type="button" id="buy-drill">unlock drill</button>
-        <button type="button" id="buy-recall">unlock recall</button>
+        <button type="button" id="buy-teleporter">teleporter</button>
+        <button type="button" id="buy-drill">drill</button>
+        <button type="button" id="buy-recall">recall</button>
+        <button type="button" id="buy-joker-safety-view">peek</button>
       </div>
       <div id="bind-prompt"></div>
     </div>
@@ -46,10 +47,6 @@
     <button type="button" data-direction="left" aria-label="Move left"></button>
     <button type="button" data-direction="down" aria-label="Move down"></button>
   </div>
-  <div id="mobile-item-controls" aria-label="Item controls">
-    <button type="button" data-item="teleporter" aria-label="Use teleporter"></button>
-    <button type="button" data-item="drill" aria-label="Use drill"></button>
-    <button type="button" data-item="recall" aria-label="Use recall"></button>
-  </div>
+  <div id="mobile-item-controls" aria-label="Item controls"></div>
 </body>
 </html>

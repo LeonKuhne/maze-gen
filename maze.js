@@ -207,20 +207,89 @@ function getTraversableNeighborHashes(hash) {
 }
 
 function getDeadEndAttachmentIndex(deadEndHash, pathIndexByHash) {
-  let currentHash = deadEndHash
-  let previousHash = null
+  let queue = [deadEndHash]
+  let visited = new Set([deadEndHash])
+  let bestAttachmentIndex = Number.POSITIVE_INFINITY
 
-  while (!(currentHash in pathIndexByHash)) {
-    let nextOptions = getTraversableNeighborHashes(currentHash).filter((hash) => hash !== previousHash)
-    if (nextOptions.length === 0) {
-      return -1
+  while (queue.length > 0) {
+    let currentHash = queue.shift()
+
+    if (currentHash in pathIndexByHash) {
+      bestAttachmentIndex = Math.min(bestAttachmentIndex, pathIndexByHash[currentHash])
+      continue
     }
 
-    previousHash = currentHash
-    currentHash = nextOptions[0]
+    let neighbors = getTraversableNeighborHashes(currentHash)
+    for (let neighborHash of neighbors) {
+      if (visited.has(neighborHash)) {
+        continue
+      }
+
+      visited.add(neighborHash)
+      queue.push(neighborHash)
+    }
   }
 
-  return pathIndexByHash[currentHash]
+  if (!Number.isFinite(bestAttachmentIndex)) {
+    return -1
+  }
+
+  return bestAttachmentIndex
+}
+
+function getMazeCellTargetForFloor() {
+  let baseSize = Math.max(1, Math.floor(Config.maze_size))
+  let growthPerFloor = Math.max(0, Math.floor(Config.maze_size_growth_per_floor))
+  let floorDepth = Math.max(1, Math.floor(State.floor))
+  let target = baseSize + ((floorDepth - 1) * growthPerFloor)
+  let maxSize = Math.max(baseSize, Math.floor(Config.maze_size_max))
+  return Math.min(target, maxSize)
+}
+
+function selectSpacedDoorIndexes(doorIndexes) {
+  if (doorIndexes.length === 0) {
+    return []
+  }
+
+  let floorDepth = Math.max(1, Math.floor(State.floor))
+  let baseDoorCount = Math.max(1, Math.floor(Config.door_count_base))
+  let growthPerFloor = Math.max(0, Number(Config.door_count_growth_per_floor) || 0)
+  let maxDoorCount = Math.max(baseDoorCount, Math.floor(Config.door_count_max))
+  let targetDoorCount = Math.min(maxDoorCount, Math.max(1, Math.floor(baseDoorCount + ((floorDepth - 1) * growthPerFloor))))
+
+  if (doorIndexes.length <= targetDoorCount) {
+    return [...doorIndexes]
+  }
+
+  if (targetDoorCount === 1) {
+    return [doorIndexes[Math.floor(doorIndexes.length / 2)]]
+  }
+
+  let selected = []
+  for (let i = 0; i < targetDoorCount; i++) {
+    let position = (i * (doorIndexes.length - 1)) / (targetDoorCount - 1)
+    let candidateIndex = doorIndexes[Math.round(position)]
+
+    if (selected.length === 0 || selected[selected.length - 1] !== candidateIndex) {
+      selected.push(candidateIndex)
+    }
+  }
+
+  if (selected.length < targetDoorCount) {
+    for (let doorIndex of doorIndexes) {
+      if (selected.includes(doorIndex)) {
+        continue
+      }
+
+      selected.push(doorIndex)
+      if (selected.length >= targetDoorCount) {
+        break
+      }
+    }
+  }
+
+  selected.sort((a, b) => a - b)
+  return selected
 }
 
 function placeKeysAndDoors(endHash) {
@@ -248,6 +317,22 @@ function placeKeysAndDoors(endHash) {
     }
   }
 
+  let minDoorGap = Math.max(2, Math.floor(Config.door_min_path_gap))
+  let spacedDoorIndexes = []
+  for (let doorIndex of doorIndexes) {
+    if (spacedDoorIndexes.length === 0) {
+      spacedDoorIndexes.push(doorIndex)
+      continue
+    }
+
+    let lastDoorIndex = spacedDoorIndexes[spacedDoorIndexes.length - 1]
+    if (doorIndex - lastDoorIndex >= minDoorGap) {
+      spacedDoorIndexes.push(doorIndex)
+    }
+  }
+
+  let selectedDoorIndexes = selectSpacedDoorIndexes(spacedDoorIndexes)
+
   let keyedDeadEnds = deadEndHashes
     .map((hash) => {
       return {
@@ -262,7 +347,7 @@ function placeKeysAndDoors(endHash) {
   let availableDeadEnds = [...keyedDeadEnds]
   let pairs = []
 
-  for (let doorIndex of doorIndexes) {
+  for (let doorIndex of selectedDoorIndexes) {
     let eligibleDeadEndIndexes = []
 
     for (let i = 0; i < availableDeadEnds.length; i++) {
@@ -281,8 +366,14 @@ function placeKeysAndDoors(endHash) {
 
     pairs.push({
       keyHash: deadEnd.hash,
-      doorHash: startToEndPath[doorIndex]
+      keyAttachmentIndex: deadEnd.attachmentIndex,
+      doorHash: startToEndPath[doorIndex],
+      doorIndex
     })
+  }
+
+  if (pairs.length === 0) {
+    return
   }
 
   for (let i = pairs.length - 1; i > 0; i--) {
@@ -290,15 +381,60 @@ function placeKeysAndDoors(endHash) {
     ;[pairs[i], pairs[j]] = [pairs[j], pairs[i]]
   }
 
+  let colorByGroup = []
+  let groupCount = Math.max(1, Math.ceil(pairs.length / 2))
+  for (let i = 0; i < groupCount; i++) {
+    colorByGroup.push(generateKeyColor(i))
+  }
+
+  let groupForPair = pairs.map(() => Math.floor(Math.random() * groupCount))
+
+  let hasGroup = new Set(groupForPair)
+  for (let i = 0; i < groupCount; i++) {
+    if (hasGroup.has(i)) {
+      continue
+    }
+
+    let randomPairIndex = Math.floor(Math.random() * pairs.length)
+    groupForPair[randomPairIndex] = i
+    hasGroup.add(i)
+  }
+
+  let representativePairByGroup = {}
+  let doorHashesByGroup = {}
+
   for (let i = 0; i < pairs.length; i++) {
-    let keyColor = generateKeyColor(i)
-    let { keyHash, doorHash } = pairs[i]
+    let groupIndex = groupForPair[i]
+    let pair = pairs[i]
+    let { doorHash } = pair
 
-    State.maze[keyHash] = CellType.KEY
-    State.keyColorByHash[keyHash] = keyColor
+    if (!(groupIndex in representativePairByGroup)) {
+      representativePairByGroup[groupIndex] = pair
+    } else if (pair.keyAttachmentIndex < representativePairByGroup[groupIndex].keyAttachmentIndex) {
+      representativePairByGroup[groupIndex] = pair
+    }
 
-    State.maze[doorHash] = CellType.DOOR
-    State.doorColorByHash[doorHash] = keyColor
+    if (!(groupIndex in doorHashesByGroup)) {
+      doorHashesByGroup[groupIndex] = []
+    }
+    doorHashesByGroup[groupIndex].push(doorHash)
+  }
+
+  for (let groupIndex = 0; groupIndex < groupCount; groupIndex++) {
+    let keyColor = colorByGroup[groupIndex]
+    let representativePair = representativePairByGroup[groupIndex]
+    let keyHash = representativePair?.keyHash
+    let doorHashes = doorHashesByGroup[groupIndex] ?? []
+
+    if (keyHash !== undefined) {
+      State.maze[keyHash] = CellType.KEY
+      State.keyColorByHash[keyHash] = keyColor
+    }
+
+    for (let doorHash of doorHashes) {
+      State.maze[doorHash] = CellType.DOOR
+      State.doorColorByHash[doorHash] = keyColor
+    }
 
     if (!(keyColor in State.keyInventory)) {
       State.keyInventory[keyColor] = 0
@@ -444,7 +580,7 @@ export function generateMaze() {
   State.teleporterDownHash = null
   State.teleporterPlacementTarget = "up"
 
-  let maze_cells = Math.max(1, Math.floor(Config.maze_size))
+  let maze_cells = getMazeCellTargetForFloor()
   let num_cells = 0
   let nextForkAt = getRandomForkInterval()
   let last_open_pos = null
@@ -462,8 +598,13 @@ export function generateMaze() {
       continue
     }
 
-    if (num_cells > 0 && countCarvedNeighbors(pos) !== 1) {
-      continue
+    let carvedNeighborCount = countCarvedNeighbors(pos)
+    if (num_cells > 0) {
+      let reconnectChance = Math.max(0, Math.min(1, Number(Config.path_reconnect_chance) || 0))
+      let shouldReconnect = carvedNeighborCount === 2 && Math.random() < reconnectChance
+      if (carvedNeighborCount !== 1 && !shouldReconnect) {
+        continue
+      }
     }
 
     if (num_cells > 0 && creates2x2OpenSpace(pos)) {

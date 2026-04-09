@@ -1,8 +1,15 @@
 export class Config {
   static view_size = 15
   static maze_size = 50 
+  static maze_size_growth_per_floor = 8
+  static maze_size_max = 220
   static fork_min = 2
   static fork_max = 2
+  static path_reconnect_chance = 0.03
+  static door_min_path_gap = 3
+  static door_count_base = 2
+  static door_count_growth_per_floor = 0.25
+  static door_count_max = 6
   static hazard_check_ms = 50
   static hazard_trigger_chance = 0.004
   static event_warning_duration_ms = 10000
@@ -12,9 +19,11 @@ export class Config {
   static safety_tile_max = 6
   static coin_min = 6
   static coin_max = 14
-  static teleporter_unlock_cost = 8
-  static drill_unlock_cost = 10
-  static drill_use_cost = 3
-  static recall_unlock_cost = 12
-  static recall_use_cost = 4
+  static teleporter_unlock_cost = 30
+  static drill_unlock_cost = 36
+  static drill_use_cost = 12
+  static recall_unlock_cost = 42
+  static recall_use_cost = 16
+  static joker_safety_view_upgrade_cost = 50
+  static joker_safety_view_radius_bonus = 2
 }
