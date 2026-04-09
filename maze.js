@@ -407,6 +407,30 @@ function placeCoins(endHash) {
   }
 }
 
+function placeShopTile(endHash) {
+  let startHash = State.player_pos.hash()
+  let candidates = []
+
+  for (let hash in State.maze) {
+    if (hash === startHash || hash === endHash) {
+      continue
+    }
+
+    if (State.maze[hash] !== CellType.OPEN) {
+      continue
+    }
+
+    candidates.push(hash)
+  }
+
+  if (candidates.length === 0) {
+    return
+  }
+
+  candidates.sort(() => Math.random() - 0.5)
+  State.maze[candidates[0]] = CellType.SHOP
+}
+
 export function generateMaze() {
   State.maze = {}
   State.keyInventory = {}
@@ -466,6 +490,7 @@ export function generateMaze() {
     State.maze[endHash] = CellType.END
     placeKeysAndDoors(endHash)
     placeHomeTile(endHash)
+    placeShopTile(endHash)
     placeSafetyTiles(endHash)
     placeCoins(endHash)
   }

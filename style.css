@@ -50,6 +50,26 @@ body {
   z-index: 10;
 }
 
+#shop-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  color: #ddd;
+  font-family: monospace;
+  font-size: 14px;
+  z-index: 15;
+  background: #0008;
+  border: 1px solid #666;
+  padding: 6px 10px;
+  text-align: center;
+  pointer-events: none;
+}
+
+#shop-hint[hidden] {
+  display: none;
+}
+
 #key-counter .inventory-key {
   width: 14px;
   height: 14px;
@@ -62,6 +82,10 @@ body {
 #mobile-controls {
   display: none;
   rotate: 45deg;
+}
+
+#mobile-item-controls {
+  display: none;
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -86,6 +110,47 @@ body {
 
   #mobile-controls button:active {
     background: #333;
+  }
+
+  #mobile-item-controls {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    display: flex;
+    gap: 10px;
+    z-index: 20;
+  }
+
+  #mobile-item-controls button {
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+    border: 1px solid #888a;
+    background: #fff1;
+    color: #ddd;
+    font-family: monospace;
+    font-size: 10px;
+    touch-action: manipulation;
+  }
+
+  #mobile-item-controls button[data-item="teleporter"]::after {
+    content: "tp";
+  }
+
+  #mobile-item-controls button[data-item="drill"]::after {
+    content: "dr";
+  }
+
+  #mobile-item-controls button[data-item="recall"]::after {
+    content: "rc";
+  }
+
+  #mobile-item-controls button:active {
+    background: #333;
+  }
+
+  #shop-retry {
+    font-size: 12px;
   }
 
 }
@@ -196,6 +261,24 @@ game {
       &[type="coin"] {
         background: #333;
         position: relative;
+      }
+
+      &[type="shop"] {
+        background: #333;
+        position: relative;
+      }
+
+      &[type="shop"]::after {
+        content: "$";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        color: #ffe08a;
+        font-family: monospace;
+        font-size: calc(var(--cell-size) / 2.8);
+        line-height: 1;
+        text-shadow: 0 0 8px #ffcc6666;
       }
 
       &[type="coin"]::after {
@@ -312,13 +395,47 @@ game {
   opacity: 0.9;
 }
 
-#pause-shop {
+#shop-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 36;
+  background: #0009;
+}
+
+#shop-modal[hidden] {
+  display: none;
+}
+
+#shop-dialog {
+  min-width: 240px;
+  max-width: 90vw;
+  background: #111;
+  border: 2px solid #aaa;
+  color: #ddd;
+  font-family: monospace;
+  text-align: center;
+  padding: 16px 20px;
+}
+
+#shop-title {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+#shop-retry {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+#shop-actions {
   margin-top: 12px;
   display: grid;
   gap: 8px;
 }
 
-#pause-shop button {
+#shop-actions button {
   font-family: monospace;
   font-size: 13px;
   padding: 8px 10px;
@@ -328,7 +445,7 @@ game {
   text-align: left;
 }
 
-#pause-shop button[disabled] {
+#shop-actions button[disabled] {
   opacity: 0.55;
 }
 

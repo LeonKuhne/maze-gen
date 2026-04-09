@@ -233,6 +233,8 @@ function getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath, view
 export function updateRender() {
   let playerHash = State.player_pos.hash()
   let isOnHomeCell = (playerHash in State.maze) && State.maze[playerHash] === CellType.HOME
+  let isOnShopCell = (playerHash in State.maze) && State.maze[playerHash] === CellType.SHOP
+  let isMobile = window.matchMedia("(hover: none) and (pointer: coarse)").matches
   let targetViewSize = isOnHomeCell ? (Config.view_size * 2) - 1 : Config.view_size
   ensureViewGridSize(targetViewSize)
   let viewSize = getCurrentViewSize()
@@ -272,9 +274,24 @@ export function updateRender() {
     floorCounter.textContent = `floor: ${State.floor}`
   }
 
+  let pauseRetry = document.querySelector("#pause-retry")
+  if (pauseRetry !== null) {
+    pauseRetry.textContent = isMobile ? "tap to resume" : "press esc to resume"
+  }
+
   let moneyCounter = document.querySelector("#money-counter")
   if (moneyCounter !== null) {
     moneyCounter.textContent = `coins: ${State.coins}`
+  }
+
+  let shopHint = document.querySelector("#shop-hint")
+  if (shopHint !== null) {
+    let shouldShow = isOnShopCell && !State.isPaused && !State.isShopOpen && !State.gameOver
+    if (shouldShow) {
+      shopHint.removeAttribute("hidden")
+    } else {
+      shopHint.setAttribute("hidden", "")
+    }
   }
 
   let keyCounter = document.querySelector("#key-counter")
@@ -406,6 +423,8 @@ export function updateRender() {
         }
       } else if (State.maze[mazeHash] === CellType.COIN) {
         cell.setAttribute("type", "coin")
+      } else if (State.maze[mazeHash] === CellType.SHOP) {
+        cell.setAttribute("type", "shop")
       } else if (State.maze[mazeHash] === CellType.DOOR) {
         cell.setAttribute("type", "door")
         if (mazeHash in State.doorColorByHash) {

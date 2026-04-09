@@ -33,4 +33,5 @@ export class State {
   static bindCaptureItem = null
   static gameOver = false
   static isPaused = false
+  static isShopOpen = false
 }

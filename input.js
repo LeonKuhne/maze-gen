@@ -198,7 +198,7 @@ function setTeleporterPoint(kind) {
 }
 
 function useTeleporterPlacementAction() {
-  if (!State.teleporterUnlocked || State.teleporterBindCode === null) {
+  if (!State.teleporterUnlocked) {
     return
   }
 
@@ -241,6 +241,26 @@ function useRecall() {
   State.player_pos = new Pos(x, y)
   State.playerMoveTick++
   updateRender()
+}
+
+export function useMobileAbility(kind) {
+  if (State.gameOver || State.isPaused || State.isShopOpen) {
+    return
+  }
+
+  if (kind === "teleporter") {
+    useTeleporterPlacementAction()
+    return
+  }
+
+  if (kind === "drill") {
+    useDrill()
+    return
+  }
+
+  if (kind === "recall") {
+    useRecall()
+  }
 }
 
 function applyTeleporterIfNeeded() {
@@ -301,6 +321,15 @@ function dropLeastRecentKey() {
   updateRender()
 }
 
+function isPlayerOnShopTile() {
+  let playerHash = State.player_pos.hash()
+  if (!(playerHash in State.maze)) {
+    return false
+  }
+
+  return State.maze[playerHash] === CellType.SHOP
+}
+
 function setGameOverModalVisibility(isVisible) {
   let modal = document.querySelector("#game-over-modal")
   if (modal === null) {
@@ -327,9 +356,46 @@ function setPauseModalVisibility(isVisible) {
   }
 }
 
+function setShopModalVisibility(isVisible) {
+  let modal = document.querySelector("#shop-modal")
+  if (modal === null) {
+    return
+  }
+
+  if (isVisible) {
+    modal.removeAttribute("hidden")
+  } else {
+    modal.setAttribute("hidden", "")
+  }
+}
+
+export function setShopOpen(isOpen) {
+  if (State.gameOver) {
+    return
+  }
+
+  if (isOpen && !isPlayerOnShopTile()) {
+    return
+  }
+
+  State.isShopOpen = isOpen
+
+  if (isOpen) {
+    State.isPaused = false
+    setPauseModalVisibility(false)
+  }
+
+  setShopModalVisibility(isOpen)
+  updateRender()
+}
+
 export function setPaused(isPaused) {
   if (State.gameOver) {
     return
+  }
+
+  if (isPaused && State.isShopOpen) {
+    setShopOpen(false)
   }
 
   State.isPaused = isPaused
@@ -355,6 +421,7 @@ export function triggerGameOver() {
   State.warningClearElapsedMs = 0
   State.warningClearStartProgress = 0
   State.isPaused = false
+  State.isShopOpen = false
 
   let finalScore = document.querySelector("#final-score")
   if (finalScore !== null) {
@@ -362,6 +429,7 @@ export function triggerGameOver() {
   }
 
   setGameOverModalVisibility(true)
+  setShopModalVisibility(false)
   updateRender()
 }
 
@@ -387,15 +455,17 @@ export function restartGame() {
   State.recallBindCode = null
   State.bindCaptureItem = null
   State.isPaused = false
+  State.isShopOpen = false
 
   generateMaze()
   setGameOverModalVisibility(false)
   setPauseModalVisibility(false)
+  setShopModalVisibility(false)
   updateRender()
 }
 
 export function movePlayer(dx, dy) {
-  if (State.gameOver || State.isPaused) {
+  if (State.gameOver || State.isPaused || State.isShopOpen) {
     return
   }
 
@@ -458,6 +528,10 @@ export function handleInput(event) {
 
   if (event.key === "Escape") {
     event.preventDefault()
+    if (State.isShopOpen) {
+      setShopOpen(false)
+      return
+    }
     togglePause()
     return
   }
@@ -466,13 +540,17 @@ export function handleInput(event) {
     event.preventDefault()
     if (State.gameOver) {
       restartGame()
+    } else if (State.isShopOpen) {
+      setShopOpen(false)
+    } else if (!State.isPaused && isPlayerOnShopTile()) {
+      setShopOpen(true)
     } else if (!State.isPaused) {
       dropLeastRecentKey()
     }
     return
   }
 
-  if (State.gameOver || State.isPaused) {
+  if (State.gameOver || State.isPaused || State.isShopOpen) {
     return
   }
 
@@ -507,5 +585,49 @@ export function handleInput(event) {
     case "ArrowRight":
       movePlayer(0, 1)
       break
+  }
+}
+
+export function handleMobileScreenTap(event) {
+  if (State.gameOver) {
+    return
+  }
+
+  let target = event.target
+  if (!(target instanceof Element)) {
+    return
+  }
+
+  if (State.isPaused) {
+    setPaused(false)
+    return
+  }
+
+  if (
+    target.closest("#mobile-controls") !== null ||
+    target.closest("#mobile-item-controls") !== null ||
+    target.closest("#pause-dialog") !== null
+  ) {
+    return
+  }
+
+  if (State.isShopOpen) {
+    if (target.closest("#shop-dialog") === null) {
+      setShopOpen(false)
+    }
+    return
+  }
+
+  if (target.closest("#shop-dialog") !== null) {
+    return
+  }
+
+  if (isPlayerOnShopTile() && !State.isPaused) {
+    setShopOpen(true)
+    return
+  }
+
+  if (!State.isPaused) {
+    setPaused(true)
   }
 }

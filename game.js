@@ -1,4 +1,4 @@
-import { handleInput, movePlayer, setupShopControls, triggerGameOver } from "./input.js"
+import { handleInput, handleMobileScreenTap, movePlayer, setupShopControls, triggerGameOver, useMobileAbility } from "./input.js"
 import { updateRender } from "./render.js"
 import { Config } from "./config.js"
 import { State } from "./state.js"
@@ -84,7 +84,7 @@ function resolveHazardWarning() {
 }
 
 function tickHazards() {
-  if (State.gameOver || State.isPaused) {
+  if (State.gameOver || State.isPaused || State.isShopOpen) {
     return
   }
 
@@ -148,12 +148,56 @@ function setupMobileControls() {
     let [dx, dy] = directionByName[direction]
     let onPress = function(event) {
       event.preventDefault()
+      event.stopPropagation()
       movePlayer(dx, dy)
     }
 
     button.addEventListener("click", onPress)
     button.addEventListener("touchstart", onPress, { passive: false })
   }
+}
+
+function setupMobileItemControls() {
+  let isMobile = window.matchMedia("(hover: none) and (pointer: coarse)").matches
+  if (!isMobile) {
+    return
+  }
+
+  let controls = document.querySelector("#mobile-item-controls")
+  if (controls === null) {
+    return
+  }
+
+  let buttons = controls.querySelectorAll("button[data-item]")
+  for (let button of buttons) {
+    let item = button.dataset.item
+    if (item !== "teleporter" && item !== "drill" && item !== "recall") {
+      continue
+    }
+
+    let onPress = function(event) {
+      event.preventDefault()
+      event.stopPropagation()
+      useMobileAbility(item)
+    }
+
+    button.addEventListener("click", onPress)
+    button.addEventListener("touchstart", onPress, { passive: false })
+  }
+}
+
+function setupMobileScreenTap() {
+  let isMobile = window.matchMedia("(hover: none) and (pointer: coarse)").matches
+  if (!isMobile) {
+    return
+  }
+
+  let onTap = function(event) {
+    handleMobileScreenTap(event)
+  }
+
+  document.addEventListener("click", onTap)
+  document.addEventListener("touchstart", onTap, { passive: false })
 }
 
 window.onload = function() {
@@ -180,6 +224,8 @@ window.onload = function() {
   })
 
   setupMobileControls()
+  setupMobileItemControls()
+  setupMobileScreenTap()
   setupShopControls()
 
   if (hazardTimerId !== null) {
