@@ -4,7 +4,12 @@ import { State } from "./state.js"
 import { CellType } from "./cell.js"
 
 const CARDINAL_DIRECTIONS = [[-1, 0], [1, 0], [0, -1], [0, 1]]
-const KEY_COLORS = ["red", "blue", "gold"]
+const COLOR_COUNT = 64
+
+function generateKeyColor(index) {
+  let hue = Math.floor(((index * 137.508) % COLOR_COUNT) * (360 / COLOR_COUNT))
+  return `hsl(${hue} 78% 54%)`
+}
 
 function isCarvedCell(pos, candidatePos = null) {
   if (candidatePos !== null && pos.x === candidatePos.x && pos.y === candidatePos.y) {
@@ -254,16 +259,26 @@ function placeKeysAndDoors(endHash) {
 
   keyedDeadEnds.sort((a, b) => a.attachmentIndex - b.attachmentIndex)
 
-  let availableDoorIndexes = [...doorIndexes]
+  let availableDeadEnds = [...keyedDeadEnds]
   let pairs = []
 
-  for (let deadEnd of keyedDeadEnds) {
-    let doorSlot = availableDoorIndexes.findIndex((index) => index > deadEnd.attachmentIndex)
-    if (doorSlot === -1) {
+  for (let doorIndex of doorIndexes) {
+    let eligibleDeadEndIndexes = []
+
+    for (let i = 0; i < availableDeadEnds.length; i++) {
+      if (availableDeadEnds[i].attachmentIndex < doorIndex) {
+        eligibleDeadEndIndexes.push(i)
+      }
+    }
+
+    if (eligibleDeadEndIndexes.length === 0) {
       continue
     }
 
-    let [doorIndex] = availableDoorIndexes.splice(doorSlot, 1)
+    let randomCandidateSlot = Math.floor(Math.random() * eligibleDeadEndIndexes.length)
+    let deadEndSlot = eligibleDeadEndIndexes[randomCandidateSlot]
+    let [deadEnd] = availableDeadEnds.splice(deadEndSlot, 1)
+
     pairs.push({
       keyHash: deadEnd.hash,
       doorHash: startToEndPath[doorIndex]
@@ -276,7 +291,7 @@ function placeKeysAndDoors(endHash) {
   }
 
   for (let i = 0; i < pairs.length; i++) {
-    let keyColor = KEY_COLORS[i % KEY_COLORS.length]
+    let keyColor = generateKeyColor(i)
     let { keyHash, doorHash } = pairs[i]
 
     State.maze[keyHash] = CellType.KEY
@@ -291,140 +306,8 @@ function placeKeysAndDoors(endHash) {
   }
 }
 
-function getOpenHashes() {
-  let openHashes = []
-  for (let hash in State.maze) {
-    if (State.maze[hash] === CellType.OPEN) {
-      openHashes.push(hash)
-    }
-  }
-
-  return openHashes
-}
-
-function getFirstOpenPathHash(pathHashes, used = new Set()) {
-  for (let hash of pathHashes) {
-    if (used.has(hash)) {
-      continue
-    }
-
-    if (State.maze[hash] === CellType.OPEN) {
-      return hash
-    }
-  }
-
-  return null
-}
-
-function getLastOpenPathHash(pathHashes, used = new Set()) {
-  for (let i = pathHashes.length - 1; i >= 0; i--) {
-    let hash = pathHashes[i]
-    if (used.has(hash)) {
-      continue
-    }
-
-    if (State.maze[hash] === CellType.OPEN) {
-      return hash
-    }
-  }
-
-  return null
-}
-
-function getOpenHashAfterPathIndex(pathHashes, startIndex, used = new Set()) {
-  for (let i = Math.max(0, startIndex); i < pathHashes.length; i++) {
-    let hash = pathHashes[i]
-    if (used.has(hash)) {
-      continue
-    }
-
-    if (State.maze[hash] === CellType.OPEN) {
-      return hash
-    }
-  }
-
-  return null
-}
-
-function getOpenHashBeforePathIndex(pathHashes, startIndex, used = new Set()) {
-  for (let i = Math.min(pathHashes.length - 1, startIndex); i >= 0; i--) {
-    let hash = pathHashes[i]
-    if (used.has(hash)) {
-      continue
-    }
-
-    if (State.maze[hash] === CellType.OPEN) {
-      return hash
-    }
-  }
-
-  return null
-}
-
-function placeWeaponsAndEnemies(endHash) {
-  let startToEndPath = getPathToTarget(State.player_pos, endHash)
-  if (startToEndPath.length === 0) {
-    return
-  }
-
-  let usedHashes = new Set([State.player_pos.hash(), endHash])
-
-  let swordHash = getFirstOpenPathHash(startToEndPath, usedHashes)
-  if (swordHash === null) {
-    let openHashes = getOpenHashes().filter((hash) => !usedHashes.has(hash))
-    swordHash = openHashes.length > 0 ? openHashes[0] : null
-  }
-
-  if (swordHash !== null) {
-    State.maze[swordHash] = CellType.SWORD
-    usedHashes.add(swordHash)
-  }
-
-  let swordIndex = swordHash === null ? 1 : startToEndPath.indexOf(swordHash)
-
-  let gunHash = getOpenHashAfterPathIndex(startToEndPath, swordIndex + 1, usedHashes)
-  if (gunHash === null) {
-    let openHashes = getOpenHashes().filter((hash) => !usedHashes.has(hash))
-    gunHash = openHashes.length > 0 ? openHashes[openHashes.length - 1] : null
-  }
-
-  if (gunHash !== null) {
-    State.maze[gunHash] = CellType.GUN
-    usedHashes.add(gunHash)
-  }
-
-  let gunIndex = gunHash === null ? startToEndPath.length - 2 : startToEndPath.indexOf(gunHash)
-
-  let meleeHash = getOpenHashAfterPathIndex(startToEndPath, swordIndex + 1, usedHashes)
-  if (meleeHash !== null) {
-    State.maze[meleeHash] = CellType.ENEMY_MELEE
-    usedHashes.add(meleeHash)
-  }
-
-  let rangedHash = getOpenHashAfterPathIndex(startToEndPath, gunIndex + 1, usedHashes)
-
-  if (rangedHash !== null) {
-    State.maze[rangedHash] = CellType.ENEMY_RANGED
-    usedHashes.add(rangedHash)
-  }
-}
-
 export function generateMaze() {
-  for (let timeoutId of Object.values(State.enemyAttackTimeoutByHash)) {
-    clearTimeout(timeoutId)
-  }
-
-  if (State.enemyBulletTimerId !== null) {
-    clearInterval(State.enemyBulletTimerId)
-    State.enemyBulletTimerId = null
-  }
-
-  State.enemyAttackTimeoutByHash = {}
-  State.enemyActionByHash = {}
-  State.enemyBulletHashes = new Set()
-  State.playerActionType = ""
   State.maze = {}
-  State.weaponInventory = { sword: false, gun: false }
   State.keyInventory = {}
   State.keyColorByHash = {}
   State.doorColorByHash = {}
@@ -474,6 +357,5 @@ export function generateMaze() {
     let endHash = last_open_pos.hash()
     State.maze[endHash] = CellType.END
     placeKeysAndDoors(endHash)
-    placeWeaponsAndEnemies(endHash)
   }
 }
