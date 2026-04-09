@@ -13,6 +13,19 @@
   <game>
     <div id="game-grid"></div>
   </game>
+  <div id="game-over-modal" aria-live="polite" hidden>
+    <div id="game-over-dialog">
+      <div id="game-over-title">game over</div>
+      <div id="game-over-score">score: <span id="final-score">0</span></div>
+      <div id="game-over-retry">press space to try again</div>
+    </div>
+  </div>
+  <div id="pause-modal" aria-live="polite" hidden>
+    <div id="pause-dialog">
+      <div id="pause-title">paused</div>
+      <div id="pause-retry">press esc to resume</div>
+    </div>
+  </div>
   <div id="mobile-controls" aria-label="Movement controls">
     <button type="button" data-direction="up" aria-label="Move up"></button>
     <button type="button" data-direction="right" aria-label="Move right"></button>

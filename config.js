@@ -1,6 +1,13 @@
 export class Config {
   static view_size = 15
   static maze_size = 50 
-  static fork_min = 0
-  static fork_max = 0
+  static fork_min = 2
+  static fork_max = 2
+  static hazard_check_ms = 50
+  static hazard_trigger_chance = 0.004
+  static event_warning_duration_ms = 10000
+  static event_warning_clear_duration_ms = 300
+  static max_keys_held = 3
+  static safety_tile_min = 3
+  static safety_tile_max = 6
 }

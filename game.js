@@ -1,8 +1,124 @@
-import { handleInput, movePlayer } from "./input.js"
+import { handleInput, movePlayer, triggerGameOver } from "./input.js"
 import { updateRender } from "./render.js"
 import { Config } from "./config.js"
 import { State } from "./state.js"
 import { generateMaze } from "./maze.js"
+import { CellType } from "./cell.js"
+
+let hazardTimerId = null
+const WARNING_COLOR_COUNT = 64
+
+function generateWarningColor() {
+  let hue = Math.floor(((Math.random() * WARNING_COLOR_COUNT) % WARNING_COLOR_COUNT) * (360 / WARNING_COLOR_COUNT))
+  return `hsl(${hue} 78% 54%)`
+}
+
+function getRandomSafetyEventColor() {
+  let safetyColors = Array.from(new Set(Object.values(State.safetyColorByHash)))
+  if (safetyColors.length === 0) {
+    return generateWarningColor()
+  }
+
+  let randomIndex = Math.floor(Math.random() * safetyColors.length)
+  return safetyColors[randomIndex]
+}
+
+function clearHazardWarningAnimated() {
+  if (!State.hazardActive) {
+    return
+  }
+
+  State.warningClearActive = true
+  State.warningClearColor = State.hazardColor
+  State.warningClearElapsedMs = 0
+  State.warningClearStartProgress = Math.min(1, State.hazardElapsedMs / Math.max(1, Config.event_warning_duration_ms))
+
+  State.hazardActive = false
+  State.hazardColor = ""
+  State.hazardElapsedMs = 0
+  updateRender()
+}
+
+function isPlayerOnHomeTile() {
+  let playerHash = State.player_pos.hash()
+  if (!(playerHash in State.maze)) {
+    return false
+  }
+
+  return State.maze[playerHash] === CellType.HOME
+}
+
+function isPlayerOnMatchingSafetyTile() {
+  let playerHash = State.player_pos.hash()
+  if (!(playerHash in State.maze)) {
+    return false
+  }
+
+  if (State.maze[playerHash] !== CellType.SAFETY) {
+    return false
+  }
+
+  return State.safetyColorByHash[playerHash] === State.hazardColor
+}
+
+function startHazardWarning() {
+  let warningColor = getRandomSafetyEventColor()
+
+  State.warningClearActive = false
+  State.warningClearColor = ""
+  State.warningClearElapsedMs = 0
+  State.warningClearStartProgress = 0
+  State.hazardActive = true
+  State.hazardColor = warningColor
+  State.hazardElapsedMs = 0
+  updateRender()
+}
+
+function resolveHazardWarning() {
+  if (isPlayerOnHomeTile() || isPlayerOnMatchingSafetyTile()) {
+    clearHazardWarningAnimated()
+    return
+  }
+
+  triggerGameOver()
+}
+
+function tickHazards() {
+  if (State.gameOver || State.isPaused) {
+    return
+  }
+
+  if (State.warningClearActive) {
+    State.warningClearElapsedMs += Config.hazard_check_ms
+    if (State.warningClearElapsedMs >= Config.event_warning_clear_duration_ms) {
+      State.warningClearActive = false
+      State.warningClearColor = ""
+      State.warningClearElapsedMs = 0
+      State.warningClearStartProgress = 0
+    }
+    updateRender()
+    return
+  }
+
+  if (!State.hazardActive) {
+    if (Math.random() < Config.hazard_trigger_chance) {
+      startHazardWarning()
+    }
+    return
+  }
+
+  if (isPlayerOnHomeTile() || isPlayerOnMatchingSafetyTile()) {
+    clearHazardWarningAnimated()
+    return
+  }
+
+  State.hazardElapsedMs += Config.hazard_check_ms
+  if (State.hazardElapsedMs >= Config.event_warning_duration_ms) {
+    resolveHazardWarning()
+  } else {
+    updateRender()
+  }
+}
 
 function setupMobileControls() {
   let isMobile = window.matchMedia("(hover: none) and (pointer: coarse)").matches
@@ -64,6 +180,14 @@ window.onload = function() {
   })
 
   setupMobileControls()
+
+  if (hazardTimerId !== null) {
+    clearInterval(hazardTimerId)
+  }
+
+  hazardTimerId = setInterval(function() {
+    tickHazards()
+  }, Config.hazard_check_ms)
 
   updateRender()
 }

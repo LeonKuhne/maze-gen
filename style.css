@@ -83,12 +83,31 @@ body {
 game {
 
   #game-grid {
+    --warning-progress: 0;
+    --warning-color: transparent;
+    --warning-max-fill: 24px;
+    --view-scale: 1;
     background: black;
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(var(--view-scale));
+    transform-origin: center center;
+    transition: transform 220ms ease;
     display: grid;
+    overflow: hidden;
+
+    &[data-warning-active="true"]::after,
+    &[data-warning-clearing="true"]::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+      border: calc(2px + (var(--warning-max-fill) * var(--warning-progress))) solid var(--warning-color);
+      box-sizing: border-box;
+      transition: border-width 50ms linear;
+    }
 
     cell {
       width: var(--cell-size);
@@ -131,6 +150,18 @@ game {
         background: #333;
       }
 
+      &[type="home"] {
+        background: #333;
+        border: 8px solid #fff;
+        box-sizing: border-box;
+      }
+
+      &[type="safety"] {
+        background: #333;
+        border: 8px solid var(--safety-color, #fff);
+        box-sizing: border-box;
+      }
+
       &[type="key"] {
         background: #333;
         position: relative;
@@ -156,11 +187,84 @@ game {
       }
 
       &[type="end"] {
-        background: #a80;
+        background: #fff;
       }
 
     }
   }
+}
+
+#game-over-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 40;
+  background: #000a;
+}
+
+#game-over-modal[hidden] {
+  display: none;
+}
+
+#game-over-dialog {
+  min-width: 260px;
+  max-width: 90vw;
+  background: #111;
+  border: 2px solid #aaa;
+  color: #ddd;
+  font-family: monospace;
+  text-align: center;
+  padding: 18px 20px;
+}
+
+#game-over-title {
+  font-size: 26px;
+  margin-bottom: 10px;
+}
+
+#game-over-score {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+#game-over-retry {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+#pause-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 35;
+  background: #0009;
+}
+
+#pause-modal[hidden] {
+  display: none;
+}
+
+#pause-dialog {
+  min-width: 240px;
+  max-width: 90vw;
+  background: #111;
+  border: 2px solid #aaa;
+  color: #ddd;
+  font-family: monospace;
+  text-align: center;
+  padding: 16px 20px;
+}
+
+#pause-title {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+#pause-retry {
+  font-size: 14px;
+  opacity: 0.9;
 }
 
 @keyframes rotate {

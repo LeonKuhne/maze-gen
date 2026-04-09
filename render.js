@@ -3,6 +3,35 @@ import { State } from "./state.js"
 import { Pos } from "./pos.js"
 import { CellType } from "./cell.js"
 
+function getCurrentViewSize() {
+  return State.view.length > 0 ? State.view.length : Config.view_size
+}
+
+function ensureViewGridSize(targetSize) {
+  let gameGrid = document.querySelector("#game-grid")
+  if (gameGrid === null) {
+    return
+  }
+
+  if (State.view.length === targetSize && State.view.every((row) => row.length === targetSize)) {
+    return
+  }
+
+  gameGrid.replaceChildren()
+  gameGrid.style.gridTemplateColumns = `repeat(${targetSize}, 1fr)`
+  gameGrid.style.gridTemplateRows = `repeat(${targetSize}, 1fr)`
+
+  State.view = []
+  for (let i = 0; i < targetSize; i++) {
+    State.view[i] = []
+    for (let j = 0; j < targetSize; j++) {
+      let cell = document.createElement("cell")
+      gameGrid.appendChild(cell)
+      State.view[i][j] = cell
+    }
+  }
+}
+
 function isOpaque(pos) {
   return !(pos.hash() in State.maze)
 }
@@ -60,13 +89,13 @@ function canSeePos(targetPos) {
   return true
 }
 
-function getVisibleHashesInView() {
+function getVisibleHashesInView(viewSize) {
   let visible = new Set()
 
-  for (let i = 0; i < Config.view_size; i++) {
-    for (let j = 0; j < Config.view_size; j++) {
-      let maze_x = State.player_pos.x - Math.floor(Config.view_size / 2) + i
-      let maze_y = State.player_pos.y - Math.floor(Config.view_size / 2) + j
+  for (let i = 0; i < viewSize; i++) {
+    for (let j = 0; j < viewSize; j++) {
+      let maze_x = State.player_pos.x - Math.floor(viewSize / 2) + i
+      let maze_y = State.player_pos.y - Math.floor(viewSize / 2) + j
       let maze_pos = new Pos(maze_x, maze_y)
       if (canSeePos(maze_pos)) {
         visible.add(maze_pos.hash())
@@ -77,14 +106,29 @@ function getVisibleHashesInView() {
   return visible
 }
 
-function getConnectedVisiblePathHashes(visibleHashes) {
+function getAllHashesInView(viewSize) {
+  let hashes = new Set()
+
+  for (let i = 0; i < viewSize; i++) {
+    for (let j = 0; j < viewSize; j++) {
+      let maze_x = State.player_pos.x - Math.floor(viewSize / 2) + i
+      let maze_y = State.player_pos.y - Math.floor(viewSize / 2) + j
+      let maze_pos = new Pos(maze_x, maze_y)
+      hashes.add(maze_pos.hash())
+    }
+  }
+
+  return hashes
+}
+
+function getConnectedVisiblePathHashes(visibleHashes, viewSize) {
   let connected = new Set()
   let visiblePath = new Set()
 
-  for (let i = 0; i < Config.view_size; i++) {
-    for (let j = 0; j < Config.view_size; j++) {
-      let maze_x = State.player_pos.x - Math.floor(Config.view_size / 2) + i
-      let maze_y = State.player_pos.y - Math.floor(Config.view_size / 2) + j
+  for (let i = 0; i < viewSize; i++) {
+    for (let j = 0; j < viewSize; j++) {
+      let maze_x = State.player_pos.x - Math.floor(viewSize / 2) + i
+      let maze_y = State.player_pos.y - Math.floor(viewSize / 2) + j
       let maze_pos = new Pos(maze_x, maze_y)
       if (visibleHashes.has(maze_pos.hash()) && maze_pos.hash() in State.maze) {
         visiblePath.add(maze_pos.hash())
@@ -120,14 +164,14 @@ function getConnectedVisiblePathHashes(visibleHashes) {
   return connected
 }
 
-function getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath) {
+function getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath, viewSize) {
   let connectedWalls = new Set()
   let visibleWalls = new Set()
 
-  for (let i = 0; i < Config.view_size; i++) {
-    for (let j = 0; j < Config.view_size; j++) {
-      let maze_x = State.player_pos.x - Math.floor(Config.view_size / 2) + i
-      let maze_y = State.player_pos.y - Math.floor(Config.view_size / 2) + j
+  for (let i = 0; i < viewSize; i++) {
+    for (let j = 0; j < viewSize; j++) {
+      let maze_x = State.player_pos.x - Math.floor(viewSize / 2) + i
+      let maze_y = State.player_pos.y - Math.floor(viewSize / 2) + j
       let maze_pos = new Pos(maze_x, maze_y)
       let mazeHash = maze_pos.hash()
       if (visibleHashes.has(mazeHash) && !(mazeHash in State.maze)) {
@@ -171,6 +215,42 @@ function getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath) {
 }
 
 export function updateRender() {
+  let playerHash = State.player_pos.hash()
+  let isOnHomeCell = (playerHash in State.maze) && State.maze[playerHash] === CellType.HOME
+  let targetViewSize = isOnHomeCell ? (Config.view_size * 2) - 1 : Config.view_size
+  ensureViewGridSize(targetViewSize)
+  let viewSize = getCurrentViewSize()
+
+  let gameGrid = document.querySelector("#game-grid")
+  if (gameGrid !== null) {
+    gameGrid.style.setProperty("--view-scale", isOnHomeCell ? String(1 / 1.5) : "1")
+    let gridMinSize = Math.min(gameGrid.clientWidth, gameGrid.clientHeight)
+    let warningMaxFill = Math.max(0, Math.floor(gridMinSize / 2) - 12)
+
+    if (State.hazardActive) {
+      gameGrid.setAttribute("data-warning-active", "true")
+      gameGrid.removeAttribute("data-warning-clearing")
+      gameGrid.style.setProperty("--warning-color", State.hazardColor)
+      let warningProgress = Math.min(1, State.hazardElapsedMs / Math.max(1, Config.event_warning_duration_ms))
+      gameGrid.style.setProperty("--warning-progress", String(warningProgress))
+      gameGrid.style.setProperty("--warning-max-fill", `${warningMaxFill}px`)
+    } else if (State.warningClearActive) {
+      gameGrid.removeAttribute("data-warning-active")
+      gameGrid.setAttribute("data-warning-clearing", "true")
+      gameGrid.style.setProperty("--warning-color", State.warningClearColor)
+      let clearProgress = Math.min(1, State.warningClearElapsedMs / Math.max(1, Config.event_warning_clear_duration_ms))
+      let warningProgress = Math.max(0, State.warningClearStartProgress * (1 - clearProgress))
+      gameGrid.style.setProperty("--warning-progress", String(warningProgress))
+      gameGrid.style.setProperty("--warning-max-fill", `${warningMaxFill}px`)
+    } else {
+      gameGrid.removeAttribute("data-warning-active")
+      gameGrid.removeAttribute("data-warning-clearing")
+      gameGrid.style.removeProperty("--warning-color")
+      gameGrid.style.removeProperty("--warning-progress")
+      gameGrid.style.removeProperty("--warning-max-fill")
+    }
+  }
+
   let floorCounter = document.querySelector("#floor-counter")
   if (floorCounter !== null) {
     floorCounter.textContent = `floor: ${State.floor}`
@@ -191,20 +271,40 @@ export function updateRender() {
     }
   }
 
-  let visibleHashes = getVisibleHashesInView()
-  let connectedVisiblePath = getConnectedVisiblePathHashes(visibleHashes)
-  let connectedVisibleWalls = getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath)
+  let visibleHashes = isOnHomeCell ? getAllHashesInView(viewSize) : getVisibleHashesInView(viewSize)
+  let connectedVisiblePath
+  let connectedVisibleWalls
 
-  for (let i = 0; i < Config.view_size; i++) {
-    for (let j = 0; j < Config.view_size; j++) {
+  if (isOnHomeCell) {
+    connectedVisiblePath = new Set()
+    connectedVisibleWalls = new Set()
+
+    for (let hash of visibleHashes) {
+      if (hash in State.maze) {
+        connectedVisiblePath.add(hash)
+      } else {
+        connectedVisibleWalls.add(hash)
+      }
+    }
+  } else {
+    connectedVisiblePath = getConnectedVisiblePathHashes(visibleHashes, viewSize)
+    connectedVisibleWalls = getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath, viewSize)
+  }
+
+  for (let i = 0; i < viewSize; i++) {
+    for (let j = 0; j < viewSize; j++) {
       let cell = State.view[i][j]
-      let maze_x = State.player_pos.x - Math.floor(Config.view_size / 2) + i
-      let maze_y = State.player_pos.y - Math.floor(Config.view_size / 2) + j
+      let maze_x = State.player_pos.x - Math.floor(viewSize / 2) + i
+      let maze_y = State.player_pos.y - Math.floor(viewSize / 2) + j
       let maze_pos = new Pos(maze_x, maze_y)
       let mazeHash = maze_pos.hash()
 
       cell.removeAttribute("data-key-color")
       cell.style.removeProperty("--key-color")
+      cell.removeAttribute("data-home-color")
+      cell.style.removeProperty("--home-color")
+      cell.removeAttribute("data-safety-color")
+      cell.style.removeProperty("--safety-color")
       cell.removeAttribute("data-player")
       cell.removeAttribute("data-player-wobble")
 
@@ -236,6 +336,20 @@ export function updateRender() {
         }
       } else if (State.maze[mazeHash] === CellType.OPEN) {
         cell.setAttribute("type", "open")
+      } else if (State.maze[mazeHash] === CellType.HOME) {
+        cell.setAttribute("type", "home")
+        if (mazeHash in State.homeColorByHash) {
+          let homeColor = State.homeColorByHash[mazeHash]
+          cell.setAttribute("data-home-color", homeColor)
+          cell.style.setProperty("--home-color", homeColor)
+        }
+      } else if (State.maze[mazeHash] === CellType.SAFETY) {
+        cell.setAttribute("type", "safety")
+        if (mazeHash in State.safetyColorByHash) {
+          let safetyColor = State.safetyColorByHash[mazeHash]
+          cell.setAttribute("data-safety-color", safetyColor)
+          cell.style.setProperty("--safety-color", safetyColor)
+        }
       }
 
       if (maze_pos.equals(State.player_pos) && visibleHashes.has(mazeHash) && connectedVisiblePath.has(mazeHash)) {

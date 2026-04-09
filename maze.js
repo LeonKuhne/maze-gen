@@ -306,11 +306,82 @@ function placeKeysAndDoors(endHash) {
   }
 }
 
+function getHomeColor(index) {
+  return "#fff"
+}
+
+function getSafetyColor(index) {
+  return generateKeyColor(index)
+}
+
+function placeHomeTile(endHash) {
+  let startHash = State.player_pos.hash()
+  let candidates = []
+
+  for (let hash in State.maze) {
+    if (hash === startHash || hash === endHash) {
+      continue
+    }
+
+    if (State.maze[hash] !== CellType.OPEN) {
+      continue
+    }
+
+    candidates.push(hash)
+  }
+
+  if (candidates.length === 0) {
+    return
+  }
+
+  candidates.sort(() => Math.random() - 0.5)
+
+  let hash = candidates[0]
+  State.maze[hash] = CellType.HOME
+  State.homeColorByHash[hash] = getHomeColor(0)
+}
+
+function placeSafetyTiles(endHash) {
+  let startHash = State.player_pos.hash()
+  let candidates = []
+
+  for (let hash in State.maze) {
+    if (hash === startHash || hash === endHash) {
+      continue
+    }
+
+    if (State.maze[hash] !== CellType.OPEN) {
+      continue
+    }
+
+    candidates.push(hash)
+  }
+
+  if (candidates.length === 0) {
+    return
+  }
+
+  candidates.sort(() => Math.random() - 0.5)
+
+  let minCount = Math.max(1, Math.floor(Config.safety_tile_min))
+  let maxCount = Math.max(minCount, Math.floor(Config.safety_tile_max))
+  let targetCount = Math.min(candidates.length, Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount)
+
+  for (let i = 0; i < targetCount; i++) {
+    let hash = candidates[i]
+    State.maze[hash] = CellType.SAFETY
+    State.safetyColorByHash[hash] = getSafetyColor(i)
+  }
+}
+
 export function generateMaze() {
   State.maze = {}
   State.keyInventory = {}
+  State.keyPickupOrder = []
   State.keyColorByHash = {}
   State.doorColorByHash = {}
+  State.homeColorByHash = {}
+  State.safetyColorByHash = {}
 
   let maze_cells = Math.max(1, Math.floor(Config.maze_size))
   let num_cells = 0
@@ -357,5 +428,7 @@ export function generateMaze() {
     let endHash = last_open_pos.hash()
     State.maze[endHash] = CellType.END
     placeKeysAndDoors(endHash)
+    placeHomeTile(endHash)
+    placeSafetyTiles(endHash)
   }
 }
