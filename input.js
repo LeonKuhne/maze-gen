@@ -5,6 +5,12 @@ import { generateMaze } from "./maze.js"
 import { Pos } from "./pos.js"
 import { Config } from "./config.js"
 
+const SPACE_LONG_PRESS_MS = 350
+
+let isSpacePressActive = false
+let isSpaceLongPressHandled = false
+let spaceLongPressTimerId = null
+
 function getTotalKeysHeld() {
   return Object.values(State.keyInventory).reduce((sum, count) => sum + count, 0)
 }
@@ -407,6 +413,49 @@ export function togglePause() {
   setPaused(!State.isPaused)
 }
 
+function clearSpacePressTimer() {
+  if (spaceLongPressTimerId !== null) {
+    clearTimeout(spaceLongPressTimerId)
+    spaceLongPressTimerId = null
+  }
+}
+
+function startDesktopSpaceLongPress() {
+  clearSpacePressTimer()
+  spaceLongPressTimerId = setTimeout(function() {
+    if (!isSpacePressActive || State.gameOver || State.isShopOpen) {
+      return
+    }
+
+    setPaused(!State.isPaused)
+    isSpaceLongPressHandled = true
+  }, SPACE_LONG_PRESS_MS)
+}
+
+function runShortPrimaryAction() {
+  if (State.gameOver) {
+    restartGame()
+    return
+  }
+
+  if (State.isShopOpen) {
+    setShopOpen(false)
+    return
+  }
+
+  if (State.isPaused) {
+    setPaused(false)
+    return
+  }
+
+  if (isPlayerOnShopTile()) {
+    setShopOpen(true)
+    return
+  }
+
+  dropLeastRecentKey()
+}
+
 export function triggerGameOver() {
   if (State.gameOver) {
     return
@@ -522,8 +571,6 @@ export function movePlayer(dx, dy) {
 }
 
 export function handleInput(event) {
-  let isMobile = window.matchMedia("(hover: none) and (pointer: coarse)").matches
-
   if (tryHandleBindCapture(event)) {
     return
   }
@@ -538,17 +585,13 @@ export function handleInput(event) {
 
   if (event.key === " " || event.key === "Spacebar" || event.code === "Space") {
     event.preventDefault()
-    if (State.gameOver) {
-      restartGame()
-    } else if (State.isShopOpen) {
-      setShopOpen(false)
-    } else if (!State.isPaused && isPlayerOnShopTile()) {
-      setShopOpen(true)
-    } else if (!isMobile) {
-      setPaused(!State.isPaused)
-    } else if (!State.isPaused) {
-      dropLeastRecentKey()
+    if (event.repeat || State.bindCaptureItem !== null) {
+      return
     }
+
+    isSpacePressActive = true
+    isSpaceLongPressHandled = false
+    startDesktopSpaceLongPress()
     return
   }
 
@@ -590,26 +633,47 @@ export function handleInput(event) {
   }
 }
 
-export function handleMobileScreenTap(event) {
-  if (State.gameOver) {
+export function handleInputKeyUp(event) {
+  if (!(event.key === " " || event.key === "Spacebar" || event.code === "Space")) {
     return
   }
 
-  let target = event.target
+  event.preventDefault()
+
+  if (!isSpacePressActive) {
+    return
+  }
+
+  isSpacePressActive = false
+  clearSpacePressTimer()
+
+  if (isSpaceLongPressHandled) {
+    isSpaceLongPressHandled = false
+    return
+  }
+
+  runShortPrimaryAction()
+}
+
+function isIgnoredMobileSurfaceTarget(target) {
+  return (
+    target.closest("#mobile-controls") !== null ||
+    target.closest("#mobile-item-controls") !== null ||
+    target.closest("#pause-dialog") !== null
+  )
+}
+
+export function handleMobileScreenShortPress(target) {
+  if (State.gameOver) {
+    restartGame()
+    return
+  }
+
   if (!(target instanceof Element)) {
     return
   }
 
-  if (State.isPaused) {
-    setPaused(false)
-    return
-  }
-
-  if (
-    target.closest("#mobile-controls") !== null ||
-    target.closest("#mobile-item-controls") !== null ||
-    target.closest("#pause-dialog") !== null
-  ) {
+  if (isIgnoredMobileSurfaceTarget(target)) {
     return
   }
 
@@ -624,12 +688,47 @@ export function handleMobileScreenTap(event) {
     return
   }
 
-  if (isPlayerOnShopTile() && !State.isPaused) {
+  if (State.isPaused) {
+    setPaused(false)
+    return
+  }
+
+  if (isPlayerOnShopTile()) {
     setShopOpen(true)
+    return
+  }
+
+  dropLeastRecentKey()
+}
+
+export function handleMobileScreenLongPress(target) {
+  if (State.gameOver || State.isShopOpen) {
+    return
+  }
+
+  if (!(target instanceof Element)) {
+    return
+  }
+
+  if (isIgnoredMobileSurfaceTarget(target)) {
     return
   }
 
   if (!State.isPaused) {
     setPaused(true)
   }
+}
+
+export function resetPrimaryPressState() {
+  isSpacePressActive = false
+  isSpaceLongPressHandled = false
+  clearSpacePressTimer()
+}
+
+export function handleMobileScreenTap(event) {
+  if (!(event.target instanceof Element)) {
+    return
+  }
+
+  handleMobileScreenShortPress(event.target)
 }

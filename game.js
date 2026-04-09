@@ -1,4 +1,14 @@
-import { handleInput, handleMobileScreenTap, movePlayer, setupShopControls, triggerGameOver, useMobileAbility } from "./input.js"
+import {
+  handleInput,
+  handleInputKeyUp,
+  handleMobileScreenLongPress,
+  handleMobileScreenShortPress,
+  movePlayer,
+  resetPrimaryPressState,
+  setupShopControls,
+  triggerGameOver,
+  useMobileAbility
+} from "./input.js"
 import { updateRender } from "./render.js"
 import { Config } from "./config.js"
 import { State } from "./state.js"
@@ -7,6 +17,7 @@ import { CellType } from "./cell.js"
 
 let hazardTimerId = null
 const WARNING_COLOR_COUNT = 64
+const MOBILE_LONG_PRESS_MS = 350
 
 function generateWarningColor() {
   let hue = Math.floor(((Math.random() * WARNING_COLOR_COUNT) % WARNING_COLOR_COUNT) * (360 / WARNING_COLOR_COUNT))
@@ -217,10 +228,53 @@ function setupMobileScreenTap() {
   }
 
   let ignoreClickUntil = 0
+  let activeTouchTarget = null
+  let longPressTriggered = false
+  let longPressTimerId = null
+
+  function clearLongPressTimer() {
+    if (longPressTimerId !== null) {
+      clearTimeout(longPressTimerId)
+      longPressTimerId = null
+    }
+  }
 
   document.addEventListener("touchstart", function(event) {
+    event.preventDefault()
+
+    activeTouchTarget = event.target instanceof Element ? event.target : null
+    longPressTriggered = false
+    clearLongPressTimer()
+
+    longPressTimerId = setTimeout(function() {
+      if (activeTouchTarget === null) {
+        return
+      }
+
+      longPressTriggered = true
+      handleMobileScreenLongPress(activeTouchTarget)
+    }, MOBILE_LONG_PRESS_MS)
+  }, { passive: false })
+
+  document.addEventListener("touchend", function(event) {
+    event.preventDefault()
     ignoreClickUntil = Date.now() + 500
-    handleMobileScreenTap(event)
+
+    clearLongPressTimer()
+
+    if (!longPressTriggered && activeTouchTarget !== null) {
+      handleMobileScreenShortPress(activeTouchTarget)
+    }
+
+    activeTouchTarget = null
+    longPressTriggered = false
+  }, { passive: false })
+
+  document.addEventListener("touchcancel", function() {
+    ignoreClickUntil = Date.now() + 500
+    clearLongPressTimer()
+    activeTouchTarget = null
+    longPressTriggered = false
   }, { passive: false })
 
   document.addEventListener("click", function(event) {
@@ -229,7 +283,10 @@ function setupMobileScreenTap() {
       return
     }
 
-    handleMobileScreenTap(event)
+    let target = event.target
+    if (target instanceof Element) {
+      handleMobileScreenShortPress(target)
+    }
   })
 }
 
@@ -255,6 +312,9 @@ window.onload = function() {
   document.addEventListener("keydown", function(event) {
     handleInput(event)
   })
+  document.addEventListener("keyup", function(event) {
+    handleInputKeyUp(event)
+  })
 
   setupMobileControls()
   setupMobileItemControls()
@@ -268,6 +328,8 @@ window.onload = function() {
   hazardTimerId = setInterval(function() {
     tickHazards()
   }, Config.hazard_check_ms)
+
+  resetPrimaryPressState()
 
   updateRender()
 }
