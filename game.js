@@ -1,4 +1,4 @@
-import { handleInput, movePlayer } from "./input.js"
+import { evaluateEnemyAttacks, handleInput, movePlayer, useWeaponAction } from "./input.js"
 import { updateRender } from "./render.js"
 import { Config } from "./config.js"
 import { State } from "./state.js"
@@ -40,6 +40,21 @@ function setupMobileControls() {
   }
 }
 
+function setupMobileActionButton() {
+  let button = document.querySelector("#action-button")
+  if (button === null) {
+    return
+  }
+
+  let onPress = function(event) {
+    event.preventDefault()
+    useWeaponAction()
+  }
+
+  button.addEventListener("click", onPress)
+  button.addEventListener("touchstart", onPress, { passive: false })
+}
+
 window.onload = function() {
   let game_grid = document.querySelector("#game-grid")
   game_grid.style.gridTemplateColumns = `repeat(${Config.view_size}, 1fr)`
@@ -64,6 +79,8 @@ window.onload = function() {
   })
 
   setupMobileControls()
+  setupMobileActionButton()
 
   updateRender()
+  evaluateEnemyAttacks()
 }

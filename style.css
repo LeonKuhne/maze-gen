@@ -69,6 +69,10 @@ body {
   rotate: 45deg;
 }
 
+#action-button {
+  display: none;
+}
+
 @media (hover: none) and (pointer: coarse) {
   #mobile-controls {
     position: fixed;
@@ -91,6 +95,29 @@ body {
 
   #mobile-controls button:active {
     background: #333;
+  }
+
+  #action-button {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    width: calc(var(--move-button-size) * 0.95);
+    height: calc(var(--move-button-size) * 0.95);
+    border-radius: 999px;
+    border: 1px solid #9a9;
+    background: #153;
+    color: #dfd;
+    font-family: monospace;
+    font-size: 16px;
+    align-items: center;
+    justify-content: center;
+    text-transform: lowercase;
+    z-index: 21;
+    touch-action: manipulation;
+  }
+
+  #action-button:active {
+    background: #1a5;
   }
 }
 
@@ -130,6 +157,22 @@ game {
         animation: wobble-b 180ms ease-out;
       }
 
+      &[data-player="true"][data-player-action="swing"][data-player-action-tick="0"]::before {
+        animation: player-swing-a 220ms ease-out;
+      }
+
+      &[data-player="true"][data-player-action="swing"][data-player-action-tick="1"]::before {
+        animation: player-swing-b 220ms ease-out;
+      }
+
+      &[data-player="true"][data-player-action="shoot"][data-player-action-tick="0"]::before {
+        animation: player-shoot-a 180ms ease-out;
+      }
+
+      &[data-player="true"][data-player-action="shoot"][data-player-action-tick="1"]::before {
+        animation: player-shoot-b 180ms ease-out;
+      }
+
       &[type="wall"] {
         background: #222;
         border: 1px solid #888;
@@ -148,6 +191,42 @@ game {
       &[type="key"] {
         background: #333;
         position: relative;
+      }
+
+      &[type="sword"] {
+        background: #333;
+        position: relative;
+      }
+
+      &[type="sword"]::after {
+        content: "sword";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        color: #e8e8e8;
+        font-family: monospace;
+        font-size: 12px;
+        letter-spacing: 0.5px;
+        text-transform: lowercase;
+      }
+
+      &[type="gun"] {
+        background: #333;
+        position: relative;
+      }
+
+      &[type="gun"]::after {
+        content: "gun";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        color: #d7ecff;
+        font-family: monospace;
+        font-size: 12px;
+        letter-spacing: 0.5px;
+        text-transform: lowercase;
       }
 
       &[type="key"]::after {
@@ -202,6 +281,76 @@ game {
       &[type="end"] {
         background: #a80;
       }
+
+      &[type="enemy-melee"] {
+        background: #333;
+        position: relative;
+      }
+
+      &[type="enemy-melee"]::after {
+        content: "";
+        position: absolute;
+        width: calc(var(--cell-size) / 2.3);
+        height: calc(var(--cell-size) / 2.3);
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: #d44;
+        border: 1px solid #faa;
+      }
+
+      &[type="enemy-melee"][data-enemy-action="swing"][data-enemy-action-tick="0"]::after {
+        animation: enemy-swing-a 220ms ease-out;
+      }
+
+      &[type="enemy-melee"][data-enemy-action="swing"][data-enemy-action-tick="1"]::after {
+        animation: enemy-swing-b 220ms ease-out;
+      }
+
+      &[type="enemy-ranged"] {
+        background: #333;
+        position: relative;
+      }
+
+      &[type="enemy-ranged"]::after {
+        content: "";
+        position: absolute;
+        width: calc(var(--cell-size) / 2.5);
+        height: calc(var(--cell-size) / 2.5);
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: #a4d;
+        border: 1px solid #eaf;
+      }
+
+      &[type="enemy-ranged"][data-enemy-action="shoot"][data-enemy-action-tick="0"]::after {
+        animation: enemy-shoot-a 180ms ease-out;
+      }
+
+      &[type="enemy-ranged"][data-enemy-action="shoot"][data-enemy-action-tick="1"]::after {
+        animation: enemy-shoot-b 180ms ease-out;
+      }
+
+      &[data-enemy-bullet="true"] {
+        box-shadow: inset 0 0 0 999px #fff2;
+        animation: enemy-bullet-travel 70ms linear;
+      }
+
+      &[data-enemy-bullet="true"]::after {
+        content: "";
+        position: absolute;
+        width: calc(var(--cell-size) / 5.5);
+        height: calc(var(--cell-size) / 5.5);
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: #ff9;
+        border: 1px solid #fff;
+        border-radius: 999px;
+        box-shadow: 0 0 10px #ff8;
+        z-index: 4;
+      }
     }
   }
 }
@@ -223,4 +372,57 @@ game {
   33% { transform: translate(-50%, -50%) skew(-5deg, 5deg); }
   66% { transform: translate(-50%, -50%) skew(5deg, -5deg); }
   100% { transform: translate(-50%, -50%) skew(0deg, 0deg); }
+}
+
+@keyframes player-swing-a {
+  0% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  50% { transform: translate(-50%, -50%) rotate(20deg) scale(1.08); }
+  100% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+}
+
+@keyframes player-swing-b {
+  0% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  50% { transform: translate(-50%, -50%) rotate(-20deg) scale(1.08); }
+  100% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+}
+
+@keyframes player-shoot-a {
+  0% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+  40% { transform: translate(-50%, -50%) scale(1.14); filter: brightness(1.7); }
+  100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+}
+
+@keyframes player-shoot-b {
+  0% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+  40% { transform: translate(-50%, -50%) scale(1.14); filter: brightness(1.7); }
+  100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+}
+
+@keyframes enemy-swing-a {
+  0% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  50% { transform: translate(-50%, -50%) rotate(16deg) scale(1.07); }
+  100% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+}
+
+@keyframes enemy-swing-b {
+  0% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  50% { transform: translate(-50%, -50%) rotate(-16deg) scale(1.07); }
+  100% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+}
+
+@keyframes enemy-shoot-a {
+  0% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+  40% { transform: translate(-50%, -50%) scale(1.12); filter: brightness(1.75); }
+  100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+}
+
+@keyframes enemy-shoot-b {
+  0% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+  40% { transform: translate(-50%, -50%) scale(1.12); filter: brightness(1.75); }
+  100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+}
+
+@keyframes enemy-bullet-travel {
+  0% { filter: brightness(1); }
+  100% { filter: brightness(1.8); }
 }

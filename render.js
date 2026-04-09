@@ -190,6 +190,12 @@ export function updateRender() {
     }
   }
 
+  let actionButton = document.querySelector("#action-button")
+  if (actionButton !== null) {
+    let isMobile = window.matchMedia("(hover: none) and (pointer: coarse)").matches
+    actionButton.style.display = isMobile && State.weaponInventory.sword ? "flex" : "none"
+  }
+
   let visibleHashes = getVisibleHashesInView()
   let connectedVisiblePath = getConnectedVisiblePathHashes(visibleHashes)
   let connectedVisibleWalls = getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath)
@@ -205,6 +211,11 @@ export function updateRender() {
       cell.removeAttribute("data-key-color")
       cell.removeAttribute("data-player")
       cell.removeAttribute("data-player-wobble")
+      cell.removeAttribute("data-player-action")
+      cell.removeAttribute("data-player-action-tick")
+      cell.removeAttribute("data-enemy-action")
+      cell.removeAttribute("data-enemy-action-tick")
+      cell.removeAttribute("data-enemy-bullet")
 
       if (!visibleHashes.has(mazeHash)) {
         cell.setAttribute("type", "hidden")
@@ -228,6 +239,14 @@ export function updateRender() {
         if (mazeHash in State.doorColorByHash) {
           cell.setAttribute("data-key-color", State.doorColorByHash[mazeHash])
         }
+      } else if (State.maze[mazeHash] === CellType.SWORD) {
+        cell.setAttribute("type", "sword")
+      } else if (State.maze[mazeHash] === CellType.GUN) {
+        cell.setAttribute("type", "gun")
+      } else if (State.maze[mazeHash] === CellType.ENEMY_MELEE) {
+        cell.setAttribute("type", "enemy-melee")
+      } else if (State.maze[mazeHash] === CellType.ENEMY_RANGED) {
+        cell.setAttribute("type", "enemy-ranged")
       } else if (State.maze[mazeHash] === CellType.OPEN) {
         cell.setAttribute("type", "open")
       }
@@ -235,6 +254,20 @@ export function updateRender() {
       if (maze_pos.equals(State.player_pos) && visibleHashes.has(mazeHash) && connectedVisiblePath.has(mazeHash)) {
         cell.setAttribute("data-player", "true")
         cell.setAttribute("data-player-wobble", String(State.playerMoveTick % 2))
+        if (State.playerActionType.length > 0) {
+          cell.setAttribute("data-player-action", State.playerActionType)
+          cell.setAttribute("data-player-action-tick", String(State.playerActionTick % 2))
+        }
+      }
+
+      if ((State.maze[mazeHash] === CellType.ENEMY_MELEE || State.maze[mazeHash] === CellType.ENEMY_RANGED) && mazeHash in State.enemyActionByHash) {
+        let action = State.enemyActionByHash[mazeHash]
+        cell.setAttribute("data-enemy-action", action.type)
+        cell.setAttribute("data-enemy-action-tick", String(action.tick % 2))
+      }
+
+      if (State.enemyBulletHashes.has(mazeHash)) {
+        cell.setAttribute("data-enemy-bullet", "true")
       }
     }
   }
