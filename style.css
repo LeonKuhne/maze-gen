@@ -44,13 +44,12 @@ body {
   }
 
   #mobile-controls button {
-    background: #fff;
-    border: none;
+    background: #fff2;
+    border: 1px solid #888;
     margin: 1px;
     touch-action: manipulation;
     width: var(--move-button-size);
     height: var(--move-button-size);
-    opacity: 0.2;
   }
 
   #mobile-controls button:active {
