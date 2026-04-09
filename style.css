@@ -35,8 +35,8 @@ body {
 @media (hover: none) and (pointer: coarse) {
   #mobile-controls {
     position: fixed;
-    right: 32px;
-    bottom: 32px;
+    right: calc(var(--move-button-size) / 2 + 8px);
+    bottom: calc(var(--move-button-size) / 2 + 8px);
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
@@ -44,13 +44,13 @@ body {
   }
 
   #mobile-controls button {
-    background: #222;
-    color: #ddd;
+    background: #fff;
     border: none;
     margin: 1px;
     touch-action: manipulation;
     width: var(--move-button-size);
     height: var(--move-button-size);
+    opacity: 0.2;
   }
 
   #mobile-controls button:active {
