@@ -163,12 +163,68 @@ function setupMobileControls() {
       movePlayer(dx, dy)
     }
 
+    let repeatStartTimeoutId = null
+    let repeatIntervalId = null
+
+    function stopRepeat() {
+      if (repeatStartTimeoutId !== null) {
+        clearTimeout(repeatStartTimeoutId)
+        repeatStartTimeoutId = null
+      }
+
+      if (repeatIntervalId !== null) {
+        clearInterval(repeatIntervalId)
+        repeatIntervalId = null
+      }
+    }
+
+    function startRepeat(event) {
+      stopRepeat()
+      onPress(event)
+
+      repeatStartTimeoutId = setTimeout(function() {
+        repeatIntervalId = setInterval(function() {
+          movePlayer(dx, dy)
+        }, 90)
+      }, 150)
+    }
+
     let ignoreClickUntil = 0
     button.addEventListener("touchstart", function(event) {
       ignoreClickUntil = Date.now() + 500
-      onPress(event)
+      startRepeat(event)
     }, { passive: false })
+
+    button.addEventListener("touchend", function() {
+      stopRepeat()
+    }, { passive: true })
+
+    button.addEventListener("touchcancel", function() {
+      stopRepeat()
+    }, { passive: true })
+
+    button.addEventListener("touchmove", function(event) {
+      let touch = event.touches[0]
+      if (touch === undefined) {
+        return
+      }
+
+      let bounds = button.getBoundingClientRect()
+      let isInsideButton = (
+        touch.clientX >= bounds.left &&
+        touch.clientX <= bounds.right &&
+        touch.clientY >= bounds.top &&
+        touch.clientY <= bounds.bottom
+      )
+
+      if (!isInsideButton) {
+        stopRepeat()
+      }
+    }, { passive: true })
+
     button.addEventListener("click", function(event) {
+      stopRepeat()
+
       if (Date.now() < ignoreClickUntil) {
         event.preventDefault()
         event.stopPropagation()

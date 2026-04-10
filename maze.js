@@ -60,6 +60,15 @@ function getRandomForkInterval() {
   return Math.floor(Math.random() * (forkMax - forkMin + 1)) + forkMin
 }
 
+function getPathLoopChance() {
+  let configuredChance = Config.path_loop_chance
+  if (configuredChance === undefined) {
+    configuredChance = Config.path_reconnect_chance
+  }
+
+  return Math.max(0, Math.min(1, Number(configuredChance) || 0))
+}
+
 function getNextFrontierPos(stack, shouldFork) {
   if (shouldFork && stack.length > 1) {
     let randomIndex = Math.floor(Math.random() * (stack.length - 1))
@@ -567,6 +576,24 @@ function placeShopTile(endHash) {
   State.maze[candidates[0]] = CellType.SHOP
 }
 
+function placePatrolEnemy(endHash) {
+  if (!Config.patrol_enabled) {
+    State.patrolEnemyPos = null
+    State.patrolEnemyPreviousPos = null
+    return
+  }
+
+  if (!(endHash in State.maze)) {
+    State.patrolEnemyPos = null
+    State.patrolEnemyPreviousPos = null
+    return
+  }
+
+  let [x, y] = endHash.split(",").map(Number)
+  State.patrolEnemyPos = new Pos(x, y)
+  State.patrolEnemyPreviousPos = null
+}
+
 export function generateMaze() {
   State.maze = {}
   State.keyInventory = {}
@@ -576,11 +603,14 @@ export function generateMaze() {
   State.homeColorByHash = {}
   State.homeHash = null
   State.safetyColorByHash = {}
+  State.patrolEnemyPos = null
+  State.patrolEnemyPreviousPos = null
   State.teleporterUpHash = null
   State.teleporterDownHash = null
   State.teleporterPlacementTarget = "up"
 
   let maze_cells = getMazeCellTargetForFloor()
+  let pathLoopChance = getPathLoopChance()
   let num_cells = 0
   let nextForkAt = getRandomForkInterval()
   let last_open_pos = null
@@ -600,8 +630,7 @@ export function generateMaze() {
 
     let carvedNeighborCount = countCarvedNeighbors(pos)
     if (num_cells > 0) {
-      let reconnectChance = Math.max(0, Math.min(1, Number(Config.path_reconnect_chance) || 0))
-      let shouldReconnect = carvedNeighborCount === 2 && Math.random() < reconnectChance
+      let shouldReconnect = carvedNeighborCount === 2 && Math.random() < pathLoopChance
       if (carvedNeighborCount !== 1 && !shouldReconnect) {
         continue
       }
@@ -634,5 +663,6 @@ export function generateMaze() {
     placeShopTile(endHash)
     placeSafetyTiles(endHash)
     placeCoins(endHash)
+    placePatrolEnemy(endHash)
   }
 }

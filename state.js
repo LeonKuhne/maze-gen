@@ -21,6 +21,8 @@ export class State {
   static warningClearColor = ""
   static warningClearElapsedMs = 0
   static warningClearStartProgress = 0
+  static patrolEnemyPos = null
+  static patrolEnemyPreviousPos = null
   static teleporterUpHash = null
   static teleporterDownHash = null
   static teleporterPlacementTarget = "up"

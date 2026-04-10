@@ -2,6 +2,85 @@ import { Config } from "./config.js"
 import { State } from "./state.js"
 import { Pos } from "./pos.js"
 import { CellType } from "./cell.js"
+import {
+  applyLightingTargets,
+  createLightingFrameState,
+  createLightTargetForCell,
+  finalizeLightingFrame,
+  getPatrolTorchStrengthByHash
+} from "./lighting.js"
+
+let previousRenderPlayerPos = null
+let previousRenderPlayerMoveTick = -1
+let cameraAnimationFrameId = null
+let cameraAnimationStartTime = null
+const CAMERA_MOVE_DURATION_MS = 180
+
+function setCameraOffset(gameGrid, rowOffset, colOffset) {
+  gameGrid.style.setProperty("--camera-step-row", String(rowOffset))
+  gameGrid.style.setProperty("--camera-step-col", String(colOffset))
+}
+
+function easeOutCubic(value) {
+  return 1 - Math.pow(1 - value, 3)
+}
+
+function startCameraTween(gameGrid, rowDelta, colDelta) {
+  if (cameraAnimationFrameId !== null) {
+    cancelAnimationFrame(cameraAnimationFrameId)
+    cameraAnimationFrameId = null
+  }
+
+  cameraAnimationStartTime = null
+  setCameraOffset(gameGrid, rowDelta, colDelta)
+
+  let step = function(timestamp) {
+    if (cameraAnimationStartTime === null) {
+      cameraAnimationStartTime = timestamp
+    }
+
+    let elapsed = timestamp - cameraAnimationStartTime
+    let progress = Math.min(1, elapsed / CAMERA_MOVE_DURATION_MS)
+    let eased = easeOutCubic(progress)
+    let rowOffset = rowDelta * (1 - eased)
+    let colOffset = colDelta * (1 - eased)
+
+    setCameraOffset(gameGrid, rowOffset, colOffset)
+
+    if (progress < 1) {
+      cameraAnimationFrameId = requestAnimationFrame(step)
+      return
+    }
+
+    setCameraOffset(gameGrid, 0, 0)
+    cameraAnimationFrameId = null
+    cameraAnimationStartTime = null
+  }
+
+  cameraAnimationFrameId = requestAnimationFrame(step)
+}
+
+function applyCameraStepAnimation(gameGrid) {
+  if (previousRenderPlayerPos === null) {
+    setCameraOffset(gameGrid, 0, 0)
+    return
+  }
+
+  if (previousRenderPlayerMoveTick === State.playerMoveTick) {
+    return
+  }
+
+  let rowDelta = State.player_pos.x - previousRenderPlayerPos.x
+  let colDelta = State.player_pos.y - previousRenderPlayerPos.y
+  let isSingleStep = Math.abs(rowDelta) + Math.abs(colDelta) === 1
+
+  if (!isSingleStep) {
+    setCameraOffset(gameGrid, 0, 0)
+    return
+  }
+
+  startCameraTween(gameGrid, rowDelta, colDelta)
+}
 
 function formatBindLabel(code) {
   if (code === null) {
@@ -59,6 +138,59 @@ function canSeePos(targetPos) {
 
   let x = State.player_pos.x
   let y = State.player_pos.y
+  let targetX = targetPos.x
+  let targetY = targetPos.y
+  let dx = targetX - x
+  let dy = targetY - y
+  let stepX = Math.sign(dx)
+  let stepY = Math.sign(dy)
+  let absDx = Math.abs(dx)
+  let absDy = Math.abs(dy)
+  let error = absDx - absDy
+
+  while (x !== targetX || y !== targetY) {
+    let prevX = x
+    let prevY = y
+    let doubledError = error * 2
+    let movedX = false
+    let movedY = false
+
+    if (doubledError > -absDy) {
+      error -= absDy
+      x += stepX
+      movedX = true
+    }
+
+    if (doubledError < absDx) {
+      error += absDx
+      y += stepY
+      movedY = true
+    }
+
+    if (movedX && movedY) {
+      let sideA = new Pos(prevX + stepX, prevY)
+      let sideB = new Pos(prevX, prevY + stepY)
+      if (isOpaque(sideA) && isOpaque(sideB)) {
+        return false
+      }
+    }
+
+    let current = new Pos(x, y)
+    if (isOpaque(current)) {
+      return current.equals(targetPos)
+    }
+  }
+
+  return true
+}
+
+function canSeePosFrom(sourcePos, targetPos) {
+  if (targetPos.equals(sourcePos)) {
+    return true
+  }
+
+  let x = sourcePos.x
+  let y = sourcePos.y
   let targetX = targetPos.x
   let targetY = targetPos.y
   let dx = targetX - x
@@ -273,6 +405,7 @@ function syncMobileItemButtons() {
 }
 
 export function updateRender() {
+  let didPlayerStep = previousRenderPlayerMoveTick !== State.playerMoveTick
   let playerHash = State.player_pos.hash()
   let isOnHomeCell = (playerHash in State.maze) && State.maze[playerHash] === CellType.HOME
   let isOnSafetyCell = (playerHash in State.maze) && State.maze[playerHash] === CellType.SAFETY
@@ -290,37 +423,46 @@ export function updateRender() {
     targetViewSize += 1
   }
 
+  let viewScale = (isOnHomeCell || (isOnSafetyCell && State.jokerSafetyViewUnlocked)) ? String(1 / 1.5) : "1"
+
   ensureViewGridSize(targetViewSize)
   let viewSize = getCurrentViewSize()
 
   let gameGrid = document.querySelector("#game-grid")
+  let warningOverlay = document.querySelector("#warning-overlay")
   if (gameGrid !== null) {
-    gameGrid.style.setProperty("--view-scale", isOnHomeCell ? String(1 / 1.5) : "1")
-    let gridMinSize = Math.min(gameGrid.clientWidth, gameGrid.clientHeight)
-    let warningMaxFill = Math.max(0, Math.floor(gridMinSize / 2) - 12)
+    applyCameraStepAnimation(gameGrid)
+    gameGrid.style.setProperty("--view-scale", viewScale)
+    if (warningOverlay !== null) {
+      warningOverlay.style.width = `${gameGrid.clientWidth}px`
+      warningOverlay.style.height = `${gameGrid.clientHeight}px`
+      warningOverlay.style.setProperty("--warning-scale", viewScale)
 
-    if (State.hazardActive) {
-      gameGrid.setAttribute("data-warning-active", "true")
-      gameGrid.removeAttribute("data-warning-clearing")
-      gameGrid.style.setProperty("--warning-color", State.hazardColor)
-      let warningProgress = Math.min(1, State.hazardElapsedMs / Math.max(1, Config.event_warning_duration_ms))
-      gameGrid.style.setProperty("--warning-progress", String(warningProgress))
-      gameGrid.style.setProperty("--warning-max-fill", `${warningMaxFill}px`)
-    } else if (State.warningClearActive) {
-      gameGrid.removeAttribute("data-warning-active")
-      gameGrid.setAttribute("data-warning-clearing", "true")
-      gameGrid.style.setProperty("--warning-color", State.warningClearColor)
-      let clearProgress = Math.min(1, State.warningClearElapsedMs / Math.max(1, Config.event_warning_clear_duration_ms))
-      let warningProgress = Math.max(0, State.warningClearStartProgress * (1 - clearProgress))
-      gameGrid.style.setProperty("--warning-progress", String(warningProgress))
-      gameGrid.style.setProperty("--warning-max-fill", `${warningMaxFill}px`)
-    } else {
-      gameGrid.removeAttribute("data-warning-active")
-      gameGrid.removeAttribute("data-warning-clearing")
-      gameGrid.style.removeProperty("--warning-color")
-      gameGrid.style.removeProperty("--warning-progress")
-      gameGrid.style.removeProperty("--warning-max-fill")
+      let gridMinSize = Math.min(gameGrid.clientWidth, gameGrid.clientHeight)
+      let warningMaxFill = Math.max(0, Math.floor(gridMinSize / 2) - 12)
+
+      if (State.hazardActive) {
+        warningOverlay.setAttribute("data-warning-visible", "true")
+        warningOverlay.style.setProperty("--warning-color", State.hazardColor)
+        let warningProgress = Math.min(1, State.hazardElapsedMs / Math.max(1, Config.event_warning_duration_ms))
+        warningOverlay.style.setProperty("--warning-progress", String(warningProgress))
+        warningOverlay.style.setProperty("--warning-max-fill", `${warningMaxFill}px`)
+      } else if (State.warningClearActive) {
+        warningOverlay.setAttribute("data-warning-visible", "true")
+        warningOverlay.style.setProperty("--warning-color", State.warningClearColor)
+        let clearProgress = Math.min(1, State.warningClearElapsedMs / Math.max(1, Config.event_warning_clear_duration_ms))
+        let warningProgress = Math.max(0, State.warningClearStartProgress * (1 - clearProgress))
+        warningOverlay.style.setProperty("--warning-progress", String(warningProgress))
+        warningOverlay.style.setProperty("--warning-max-fill", `${warningMaxFill}px`)
+      } else {
+        warningOverlay.setAttribute("data-warning-visible", "false")
+        warningOverlay.style.removeProperty("--warning-color")
+        warningOverlay.style.removeProperty("--warning-progress")
+        warningOverlay.style.removeProperty("--warning-max-fill")
+      }
     }
+  } else if (warningOverlay !== null) {
+    warningOverlay.setAttribute("data-warning-visible", "false")
   }
 
   let floorCounter = document.querySelector("#floor-counter")
@@ -330,7 +472,7 @@ export function updateRender() {
 
   let pauseRetry = document.querySelector("#pause-retry")
   if (pauseRetry !== null) {
-    pauseRetry.textContent = isMobile ? "tap to resume" : "press space to resume"
+    pauseRetry.textContent = isMobile ? "tap to resume" : "press esc to resume"
   }
 
   let shopRetry = document.querySelector("#shop-retry")
@@ -341,6 +483,11 @@ export function updateRender() {
   let moneyCounter = document.querySelector("#money-counter")
   if (moneyCounter !== null) {
     moneyCounter.textContent = `coins: ${State.coins}`
+  }
+
+  let playerOverlay = document.querySelector("#player-overlay")
+  if (playerOverlay !== null) {
+    playerOverlay.setAttribute("data-player-wobble", String(State.playerMoveTick % 2))
   }
 
   syncMobileItemButtons()
@@ -443,6 +590,7 @@ export function updateRender() {
   let visibleHashes = isOnHomeCell ? getAllHashesInView(viewSize) : getVisibleHashesInView(viewSize)
   let connectedVisiblePath
   let connectedVisibleWalls
+  let patrolTorchStrengthByHash = getPatrolTorchStrengthByHash(State.patrolEnemyPos, canSeePosFrom)
 
   if (isOnHomeCell) {
     connectedVisiblePath = new Set()
@@ -460,6 +608,26 @@ export function updateRender() {
     connectedVisibleWalls = getConnectedVisibleWallHashes(visibleHashes, connectedVisiblePath, viewSize)
   }
 
+  let patrolOverlay = document.querySelector("#patrol-overlay")
+  if (patrolOverlay !== null) {
+    patrolOverlay.style.setProperty("--patrol-scale", viewScale)
+    let shouldShowPatrol = false
+
+    if (State.patrolEnemyPos !== null) {
+      let patrolHash = State.patrolEnemyPos.hash()
+      shouldShowPatrol = visibleHashes.has(patrolHash) && connectedVisiblePath.has(patrolHash)
+
+      if (shouldShowPatrol) {
+        patrolOverlay.style.setProperty("--patrol-row", String(State.patrolEnemyPos.x - State.player_pos.x))
+        patrolOverlay.style.setProperty("--patrol-col", String(State.patrolEnemyPos.y - State.player_pos.y))
+      }
+    }
+
+    patrolOverlay.setAttribute("data-visible", shouldShowPatrol ? "true" : "false")
+  }
+
+  let lightTargets = []
+  let lightingFrameState = createLightingFrameState()
   for (let i = 0; i < viewSize; i++) {
     for (let j = 0; j < viewSize; j++) {
       let cell = State.view[i][j]
@@ -478,6 +646,18 @@ export function updateRender() {
       cell.removeAttribute("data-player-wobble")
       cell.removeAttribute("data-teleporter-up")
       cell.removeAttribute("data-teleporter-down")
+
+      lightTargets.push(createLightTargetForCell(lightingFrameState, {
+        cell,
+        mazeHash,
+        mazePos: maze_pos,
+        playerPos: State.player_pos,
+        viewSize,
+        visibleHashes,
+        connectedVisiblePath,
+        connectedVisibleWalls,
+        patrolTorchStrengthByHash
+      }))
 
       if (!visibleHashes.has(mazeHash)) {
         cell.setAttribute("type", "hidden")
@@ -527,11 +707,6 @@ export function updateRender() {
         }
       }
 
-      if (maze_pos.equals(State.player_pos) && visibleHashes.has(mazeHash) && connectedVisiblePath.has(mazeHash)) {
-        cell.setAttribute("data-player", "true")
-        cell.setAttribute("data-player-wobble", String(State.playerMoveTick % 2))
-      }
-
       if (State.teleporterUpHash !== null && mazeHash === State.teleporterUpHash) {
         cell.setAttribute("data-teleporter-up", "true")
       }
@@ -540,5 +715,12 @@ export function updateRender() {
         cell.setAttribute("data-teleporter-down", "true")
       }
     }
+
   }
+
+  applyLightingTargets(lightTargets, didPlayerStep && previousRenderPlayerPos !== null)
+  finalizeLightingFrame(lightingFrameState)
+
+  previousRenderPlayerPos = State.player_pos.clone()
+  previousRenderPlayerMoveTick = State.playerMoveTick
 }

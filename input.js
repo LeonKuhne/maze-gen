@@ -6,10 +6,74 @@ import { Pos } from "./pos.js"
 import { Config } from "./config.js"
 
 const SPACE_LONG_PRESS_MS = 350
+const CARDINAL_DIRECTIONS = [[-1, 0], [1, 0], [0, -1], [0, 1]]
 
 let isSpacePressActive = false
 let isSpaceLongPressHandled = false
 let spaceLongPressTimerId = null
+
+function isPatrolTraversableCellType(cellType) {
+  return (
+    cellType === CellType.OPEN ||
+    cellType === CellType.END ||
+    cellType === CellType.KEY ||
+    cellType === CellType.DOOR ||
+    cellType === CellType.HOME ||
+    cellType === CellType.SAFETY ||
+    cellType === CellType.COIN ||
+    cellType === CellType.SHOP
+  )
+}
+
+function getPatrolNeighborHashes() {
+  if (State.patrolEnemyPos === null) {
+    return []
+  }
+
+  let neighbors = []
+  for (let [dx, dy] of CARDINAL_DIRECTIONS) {
+    let hash = `${State.patrolEnemyPos.x + dx},${State.patrolEnemyPos.y + dy}`
+    if (!(hash in State.maze)) {
+      continue
+    }
+
+    if (!isPatrolTraversableCellType(State.maze[hash])) {
+      continue
+    }
+
+    neighbors.push(hash)
+  }
+
+  return neighbors
+}
+
+function advancePatrolEnemyTurn() {
+  if (!Config.patrol_enabled || State.patrolEnemyPos === null || State.gameOver) {
+    return
+  }
+
+  let neighbors = getPatrolNeighborHashes()
+  if (neighbors.length === 0) {
+    return
+  }
+
+  let previousHash = State.patrolEnemyPreviousPos === null ? null : State.patrolEnemyPreviousPos.hash()
+  let nonBacktrackingNeighbors = previousHash === null
+    ? [...neighbors]
+    : neighbors.filter((hash) => hash !== previousHash)
+
+  let candidates = nonBacktrackingNeighbors.length > 0 ? nonBacktrackingNeighbors : neighbors
+  let nextHash = candidates[Math.floor(Math.random() * candidates.length)]
+  let [x, y] = nextHash.split(",").map(Number)
+
+  State.patrolEnemyPreviousPos = State.patrolEnemyPos.clone()
+  State.patrolEnemyPos.x = x
+  State.patrolEnemyPos.y = y
+
+  if (State.player_pos.equals(State.patrolEnemyPos)) {
+    triggerGameOver()
+  }
+}
 
 function getTotalKeysHeld() {
   return Object.values(State.keyInventory).reduce((sum, count) => sum + count, 0)
@@ -181,29 +245,35 @@ export function setupShopControls() {
   let buyRecall = document.querySelector("#buy-recall")
   let buyJokerSafetyView = document.querySelector("#buy-joker-safety-view")
 
-  if (buyTeleporter !== null) {
-    buyTeleporter.addEventListener("click", function() {
-      clickAbilityButton("teleporter")
+  function bindButtonPress(button, kind) {
+    if (button === null) {
+      return
+    }
+
+    let ignoreClickUntil = 0
+
+    button.addEventListener("touchstart", function(event) {
+      ignoreClickUntil = Date.now() + 500
+      event.preventDefault()
+      event.stopPropagation()
+      clickAbilityButton(kind)
+    }, { passive: false })
+
+    button.addEventListener("click", function(event) {
+      if (Date.now() < ignoreClickUntil) {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+
+      clickAbilityButton(kind)
     })
   }
 
-  if (buyDrill !== null) {
-    buyDrill.addEventListener("click", function() {
-      clickAbilityButton("drill")
-    })
-  }
-
-  if (buyRecall !== null) {
-    buyRecall.addEventListener("click", function() {
-      clickAbilityButton("recall")
-    })
-  }
-
-  if (buyJokerSafetyView !== null) {
-    buyJokerSafetyView.addEventListener("click", function() {
-      clickAbilityButton("joker-safety-view")
-    })
-  }
+  bindButtonPress(buyTeleporter, "teleporter")
+  bindButtonPress(buyDrill, "drill")
+  bindButtonPress(buyRecall, "recall")
+  bindButtonPress(buyJokerSafetyView, "joker-safety-view")
 }
 
 function setTeleporterPoint(kind) {
@@ -268,6 +338,18 @@ function useRecall() {
   let [x, y] = State.homeHash.split(",").map(Number)
   State.player_pos = new Pos(x, y)
   State.playerMoveTick++
+
+  if (State.patrolEnemyPos !== null && State.player_pos.equals(State.patrolEnemyPos)) {
+    triggerGameOver()
+    return
+  }
+
+  advancePatrolEnemyTurn()
+
+  if (State.gameOver) {
+    return
+  }
+
   updateRender()
 }
 
@@ -385,6 +467,15 @@ function isPlayerOnShopTile() {
   return State.maze[playerHash] === CellType.SHOP
 }
 
+function isPlayerOnHomeOrSafetyTile() {
+  let playerHash = State.player_pos.hash()
+  if (!(playerHash in State.maze)) {
+    return false
+  }
+
+  return State.maze[playerHash] === CellType.HOME || State.maze[playerHash] === CellType.SAFETY
+}
+
 function setGameOverModalVisibility(isVisible) {
   let modal = document.querySelector("#game-over-modal")
   if (modal === null) {
@@ -471,14 +562,6 @@ function clearSpacePressTimer() {
 
 function startDesktopSpaceLongPress() {
   clearSpacePressTimer()
-  spaceLongPressTimerId = setTimeout(function() {
-    if (!isSpacePressActive || State.gameOver || State.isShopOpen) {
-      return
-    }
-
-    setPaused(!State.isPaused)
-    isSpaceLongPressHandled = true
-  }, SPACE_LONG_PRESS_MS)
 }
 
 function runShortPrimaryAction() {
@@ -573,7 +656,15 @@ export function movePlayer(dx, dy) {
   new_pos.y += dy
   let nextHash = new_pos.hash()
 
-  if (!(nextHash in State.maze)) return
+  if (!(nextHash in State.maze)) {
+    if (isPlayerOnHomeOrSafetyTile()) {
+      advancePatrolEnemyTurn()
+      if (!State.gameOver) {
+        updateRender()
+      }
+    }
+    return
+  }
 
   if (State.maze[nextHash] === CellType.DOOR) {
     let doorColor = State.doorColorByHash[nextHash]
@@ -617,6 +708,18 @@ export function movePlayer(dx, dy) {
   State.player_pos = new_pos
   State.playerMoveTick++
   applyTeleporterIfNeeded()
+
+  if (State.patrolEnemyPos !== null && State.player_pos.equals(State.patrolEnemyPos)) {
+    triggerGameOver()
+    return
+  }
+
+  advancePatrolEnemyTurn()
+
+  if (State.gameOver) {
+    return
+  }
+
   updateRender()
 }
 
@@ -629,7 +732,10 @@ export function handleInput(event) {
     event.preventDefault()
     if (State.isShopOpen) {
       setShopOpen(false)
+      return
     }
+
+    setPaused(!State.isPaused)
     return
   }
 
